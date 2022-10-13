@@ -735,7 +735,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@rbnode: RB tree node, alternative to next/prev for netem/tcp
  *	@list: queue head
  *	@ll_node: anchor in an llist (eg socket defer_list)
- *	@sk: Socket we are owned by
+ *	@sk: Socket we are owned by 这是一个指针，指向拥有此缓冲区的套接字的sock数据结构。当数据在本地产生或者正由本地进程接收时，就需要这个指针，因为该数据以及套接字相关的信息会由L4（TCP或者UDP）以及用户应用程序使用。当缓冲区只是被转发时（也就是说本地机器不是来源地也不是目的地），该指针就是NULL. --- 布局字段
  *	@ip_defrag_offset: (aka @sk) alternate use of @sk, used in
  *		fragmentation management
  *	@dev: Device we arrived on/are leaving by
@@ -743,9 +743,9 @@ typedef unsigned char *sk_buff_data_t;
  *	@cb: Control buffer. Free for use by every layer. Put private vars here
  *	@_skb_refdst: destination entry (with norefcount bit)
  *	@sp: the security path, used for xfrm
- *	@len: Length of actual data
- *	@data_len: Data length
- *	@mac_len: Length of link layer header
+ *	@len: Length of actual data 这是指缓冲区中数据区块的大小。这个长度包括主要缓冲区（由head所指）的数据以及一些片断（fragment）的数据。当缓冲区从一个网络分层移往下一个网络分层时，其值就会变化，因为在协议栈中往上移动时报头会被丢弃，但是往下移动时报头就会添加进来。len也会把协议报头算在内，如“数据预留和对齐：skb_reserve, skb_put, skb_push, skb_pull” --- 布局字段
+ *	@data_len: Data length 与len不同的是，data_len只计算片段中的数据大小
+ *	@mac_len: Length of link layer header Mac报头的大小
  *	@hdr_len: writable header length of cloned skb
  *	@csum: Checksum (must include start/offset pair)
  *	@csum_start: Offset from skb->head where checksumming should start
@@ -772,7 +772,7 @@ typedef unsigned char *sk_buff_data_t;
  *		done for it, don't do them again
  *	@nf_trace: netfilter packet trace flag
  *	@protocol: Packet protocol from driver
- *	@destructor: Destruct function
+ *	@destructor: Destruct function 此函数指针可以被初始化为一个函数，当此缓冲区被删除时，可完成某些工作。当缓冲区不属于一个套接字时，destructor通常不会被初始化。 --- 布局字段
  *	@tcp_tsorted_anchor: list structure for TCP (tp->tsorted_sent_queue)
  *	@_sk_redir: socket redirection information for skmsg
  *	@_nfct: Associated connection, if any (with nfctinfo bits)
@@ -830,12 +830,12 @@ typedef unsigned char *sk_buff_data_t;
  *	@network_header: Network layer header
  *	@mac_header: Link layer header
  *	@kcov_handle: KCOV remote handle for remote coverage collection
- *	@tail: Tail pointer
+ *	@tail: Tail pointer 
  *	@end: End pointer
  *	@head: Head of buffer
- *	@data: Data head pointer
- *	@truesize: Buffer size
- *	@users: User count - see {datagram,tcp}.c
+ *	@data: Data head pointer 这些字段代表缓冲区的边界以及其中的数据. head和end指向已分配缓冲区空间的开端和尾端。而data和tail则指向实际数据的开端和尾端。 --- 布局字段
+ *	@truesize: Buffer size 此字段代表此缓冲区总的大小, 包括sk_buff结构本身, skb->truesize = size + sizeof(struct sk_buff); --- 布局字段
+ *	@users: User count - see {datagram,tcp}.c 这是引用计数，或者使用这个sk_buff缓冲区的实例的数目。  --- 布局字段
  *	@extensions: allocated extensions, valid if active_extensions is nonzero
  */
 
