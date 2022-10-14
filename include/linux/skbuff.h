@@ -729,7 +729,7 @@ typedef unsigned char *sk_buff_data_t;
  *	struct sk_buff - socket buffer
  *	@next: Next buffer in list
  *	@prev: Previous buffer in list
- *	@tstamp: Time we arrived/left
+ *	@tstamp: Time we arrived/left 封包何时被接收，或者有时用于表示封包预定传输时间 --- 通用字段
  *	@skb_mstamp_ns: (aka @tstamp) earliest departure time; start point
  *		for retransmit timer
  *	@rbnode: RB tree node, alternative to next/prev for netem/tcp
@@ -738,24 +738,24 @@ typedef unsigned char *sk_buff_data_t;
  *	@sk: Socket we are owned by 这是一个指针，指向拥有此缓冲区的套接字的sock数据结构。当数据在本地产生或者正由本地进程接收时，就需要这个指针，因为该数据以及套接字相关的信息会由L4（TCP或者UDP）以及用户应用程序使用。当缓冲区只是被转发时（也就是说本地机器不是来源地也不是目的地），该指针就是NULL. --- 布局字段
  *	@ip_defrag_offset: (aka @sk) alternate use of @sk, used in
  *		fragmentation management
- *	@dev: Device we arrived on/are leaving by
+ *	@dev: Device we arrived on/are leaving by 该缓冲区所属的网络设备, dev所属设备依赖于存储在该缓冲区的包是即将传输的还是刚被接收的而定，当接收到一个封包时，设备驱动程序会用代表此接收接口的数据结构的指针更新此字段，当传输一个封包时， --- 通用字段
  *	@dev_scratch: (aka @dev) alternate use of @dev when @dev would be %NULL
- *	@cb: Control buffer. Free for use by every layer. Put private vars here
- *	@_skb_refdst: destination entry (with norefcount bit)
+ *	@cb: Control buffer. Free for use by every layer. Put private vars here    私有信息的存储空间，为每一层内部使用起维护的作用。该字段在sk_buff结构内静态分配，而且容量足以容纳每个层所需的私有数据 --- 通用字段
+ *	@_skb_refdst: destination entry (with norefcount bit) 邻居子系统 --- 通用字段
  *	@sp: the security path, used for xfrm
  *	@len: Length of actual data 这是指缓冲区中数据区块的大小。这个长度包括主要缓冲区（由head所指）的数据以及一些片断（fragment）的数据。当缓冲区从一个网络分层移往下一个网络分层时，其值就会变化，因为在协议栈中往上移动时报头会被丢弃，但是往下移动时报头就会添加进来。len也会把协议报头算在内，如“数据预留和对齐：skb_reserve, skb_put, skb_push, skb_pull” --- 布局字段
  *	@data_len: Data length 与len不同的是，data_len只计算片段中的数据大小
  *	@mac_len: Length of link layer header Mac报头的大小
  *	@hdr_len: writable header length of cloned skb
- *	@csum: Checksum (must include start/offset pair)
+ *	@csum: Checksum (must include start/offset pair) 校验和 --- 通用字段
  *	@csum_start: Offset from skb->head where checksumming should start
  *	@csum_offset: Offset from csum_start where checksum should be stored
- *	@priority: Packet queueing priority
+ *	@priority: Packet queueing priority 此字段表示正被传输或转发的封包QOS等级 --- 通用字段
  *	@ignore_df: allow local fragmentation
- *	@cloned: Head may be cloned (check refcnt to be sure)
- *	@ip_summed: Driver fed us an IP checksum
+ *	@cloned: Head may be cloned (check refcnt to be sure)  表示该结构是另一个sk_buff缓冲区的克隆 --- 通用字段
+ *	@ip_summed: Driver fed us an IP checksum  校验和相关的标识 --- 通用字段
  *	@nohdr: Payload reference only, must not modify header
- *	@pkt_type: Packet class
+ *	@pkt_type: Packet class 此字段会根据帧的L2目的地址进行类型划分,可能的值有PACKET_HOST(已接收帧的目的地址),PACKET_BROADCAST(已接收帧的目的地址是接收接口的广播地址),PACKET_MULTICAST(已接收帧的目的地址是该接口已注册的多播地址之一),PACKET_OTHERHOST(已接收帧的目的地址不属于该接口相匹配的地址),PACKET_OUTGOING(封包正被发送),PACKET_LOOPBACK(封包正被发送至回环地址),PACKET_FASTROUTE(用Fastroute功能路由封包) --- 通用字段
  *	@fclone: skbuff clone status
  *	@ipvs_property: skbuff is owned by ipvs
  *	@inner_protocol_type: whether the inner protocol is
@@ -763,7 +763,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@remcsum_offload: remote checksum offload is enabled
  *	@offload_fwd_mark: Packet was L2-forwarded in hardware
  *	@offload_l3_fwd_mark: Packet was L3-forwarded in hardware
- *	@tc_skip_classify: do not classify packet. set by IFB device
+ *	@tc_skip_classify: do not classify packet. set by IFB device 流量控制相关的标识 --- 专用字段
  *	@tc_at_ingress: used within tc_classify to distinguish in/egress
  *	@redirected: packet was redirected by packet classifier
  *	@from_ingress: packet was redirected from the ingress path
@@ -771,11 +771,11 @@ typedef unsigned char *sk_buff_data_t;
  *	@peeked: this packet has been seen already, so stats have been
  *		done for it, don't do them again
  *	@nf_trace: netfilter packet trace flag
- *	@protocol: Packet protocol from driver
+ *	@protocol: Packet protocol from driver 从L2到设备驱动程序的角度来看，就是用在下一个较高层的协议。驱动程序会使用这个字段通知其上层该使用哪个处理例程。 --- 通用字段
  *	@destructor: Destruct function 此函数指针可以被初始化为一个函数，当此缓冲区被删除时，可完成某些工作。当缓冲区不属于一个套接字时，destructor通常不会被初始化。 --- 布局字段
  *	@tcp_tsorted_anchor: list structure for TCP (tp->tsorted_sent_queue)
  *	@_sk_redir: socket redirection information for skmsg
- *	@_nfct: Associated connection, if any (with nfctinfo bits)
+ *	@_nfct: Associated connection, if any (with nfctinfo bits)  由Netfilter使用，用于存储与此封包相关的连接跟踪信息 --- 专用字段
  *	@nf_bridge: Saved data about a bridged frame - see br_netfilter.c
  *	@skb_iif: ifindex of device we arrived on
  *	@tc_index: Traffic control index

@@ -1736,7 +1736,7 @@ enum netdev_ml_priv_type {
 };
 
 /**
- *	struct net_device - The DEVICE structure.
+ *	struct net_device - The DEVICE structure. 网络设备的结构
  *
  *	Actually, this whole structure is a big mistake.  It mixes I/O
  *	data with strictly "high-level" data, and it has to know about
@@ -1744,16 +1744,16 @@ enum netdev_ml_priv_type {
  *
  *	@name:	This is the first field of the "visible" part of this structure
  *		(i.e. as seen by users in the "Space.c" file).  It is the name
- *		of the interface.
+ *		of the interface. 设备名称, etc: eth0 --- 配置
  *
  *	@name_node:	Name hashlist node
  *	@ifalias:	SNMP alias
  *	@mem_end:	Shared memory end
- *	@mem_start:	Shared memory start
- *	@base_addr:	Device I/O address
- *	@irq:		Device IRQ number
+ *	@mem_start:	Shared memory start 描述设备所用的共享内存，用于设备与内核沟通，其初始化和访问只会在设备驱动程序内进行 --- 配置
+ *	@base_addr:	Device I/O address 设备自有内存映射到I/O内存的起始地址 --- 配置
+ *	@irq:		Device IRQ number 设备用于与内核对话的中断编号 --- 配置
  *
- *	@state:		Generic network queuing layer state, see netdev_state_t
+ *	@state:		Generic network queuing layer state, see netdev_state_t 由网络队列子系统所使用的一组标识。 --- 设备状态
  *	@dev_list:	The global list of network devices
  *	@napi_list:	List entry used for polling NAPI devices
  *	@unreg_list:	List entry  when we are unregistering the
@@ -1763,7 +1763,7 @@ enum netdev_ml_priv_type {
  *	@ptype_specific: Device-specific, protocol-specific packet handlers
  *
  *	@adj_list:	Directly linked devices, like slaves for bonding
- *	@features:	Currently active device features
+ *	@features:	Currently active device features 存储其它一些设备功能。 --- 配置
  *	@hw_features:	User-changeable features
  *
  *	@wanted_features:	User-requested features
@@ -1777,10 +1777,10 @@ enum netdev_ml_priv_type {
  *	@mpls_features:	Mask of features inheritable by MPLS
  *	@gso_partial_features: value(s) from NETIF_F_GSO\*
  *
- *	@ifindex:	interface index
+ *	@ifindex:	interface index 独一无二的ID，当设备以dev_new_index()注册时，会自动分配一个唯一的ID --- 标识符
  *	@group:		The group the device belongs to
  *
- *	@stats:		Statistics struct, which was left as a legacy, use
+ *	@stats:		Statistics struct, which was left as a legacy, use 统计数据 --- 统计
  *			rtnl_link_stats64 instead
  *
  *	@core_stats:	core networking counters,
@@ -1795,7 +1795,7 @@ enum netdev_ml_priv_type {
  *
  *	@netdev_ops:	Includes several pointers to callbacks,
  *			if one wants to override the ndo_*() functions
- *	@ethtool_ops:	Management operations
+ *	@ethtool_ops:	Management operations 指向一组函数指针的指针，用于设置和获取设备的各种参数
  *	@l3mdev_ops:	Layer 3 master device operations
  *	@ndisc_ops:	Includes callbacks for different IPv6 neighbour
  *			discovery handling. Necessary for e.g. 6LoWPAN.
@@ -1804,21 +1804,21 @@ enum netdev_ml_priv_type {
  *	@header_ops:	Includes callbacks for creating,parsing,caching,etc
  *			of Layer 2 headers.
  *
- *	@flags:		Interface flags (a la BSD)
- *	@priv_flags:	Like 'flags' but invisible to userspace,
+ *	@flags:		Interface flags (a la BSD)  flags字段中的某些位代表网络设备的功能，而其它位代表状态的改变 --- 配置
+ *	@priv_flags:	Like 'flags' but invisible to userspace, 用于存储用户空间不可见的标识。目前而言，此字段由VLAN和Bridge虚拟设备使用 --- 配置
  *			see if.h for the definitions
- *	@gflags:	Global flags ( kept as legacy )
+ *	@gflags:	Global flags ( kept as legacy ) 兼容 --- 配置
  *	@padded:	How much padding added by alloc_netdev()
  *	@operstate:	RFC2863 operstate
  *	@link_mode:	Mapping policy to operstate
- *	@if_port:	Selectable AUI, TP, ...
- *	@dma:		DMA channel
- *	@mtu:		Interface MTU value
- *	@min_mtu:	Interface Minimum MTU value
- *	@max_mtu:	Interface Maximum MTU value
- *	@type:		Interface hardware type
- *	@hard_header_len: Maximum hardware header length.
- *	@min_header_len:  Minimum hardware header length
+ *	@if_port:	Selectable AUI, TP, ... 此接口使用的端口类型 --- 配置
+ *	@dma:		DMA channel 设备所使用的DMA通道。
+ *	@mtu:		Interface MTU value 传输单元 --- 配置
+ *	@min_mtu:	Interface Minimum MTU value 传输单元的最小值 --- 配置
+ *	@max_mtu:	Interface Maximum MTU value 传输单元的最大值 --- 配置
+ *	@type:		Interface hardware type  设备类型(Ethernet, Token Ring, etc) --- 配置
+ *	@hard_header_len: Maximum hardware header length.  以字节为单位的设备头的大小。 --- 配置
+ *	@min_header_len:  Minimum hardware header length  以字节为单位的设备头的最小大小。 --- 配置
  *
  *	@needed_headroom: Extra headroom the hardware may need, but not in all
  *			  cases can this be guaranteed
@@ -1830,12 +1830,12 @@ enum netdev_ml_priv_type {
  *
  * 	@perm_addr:		Permanent hw address
  * 	@addr_assign_type:	Hw address assignment type
- * 	@addr_len:		Hardware address length
+ * 	@addr_len:		Hardware address length 硬件地址长度 --- 配置
  *	@upper_level:		Maximum depth level of upper devices.
  *	@lower_level:		Maximum depth level of lower devices.
  *	@neigh_priv_len:	Used in neigh_alloc()
- * 	@dev_id:		Used to differentiate devices that share
- * 				the same link layer address
+ * 	@dev_id:		Used to differentiate devices that share 目前在zSeries OSA NIC上由IPv6使用 --- 标识符
+ * 				the same link layer address 
  * 	@dev_port:		Used to differentiate devices that share
  * 				the same function
  *	@addr_list_lock:	XXX: need comments on this one
@@ -1848,7 +1848,7 @@ enum netdev_ml_priv_type {
  *	@mc:			multicast mac addresses
  *	@dev_addrs:		list of device hw addresses
  *	@queues_kset:		Group of all Kobjects in the Tx and RX queues
- *	@promiscuity:		Number of times the NIC is told to work in
+ *	@promiscuity:		Number of times the NIC is told to work in  表示一个设备是否处于混杂模式
  *				promiscuous mode; if it becomes 0 the NIC will
  *				exit promiscuous mode
  *	@allmulti:		Counter, enables or disables allmulticast mode
@@ -1857,7 +1857,7 @@ enum netdev_ml_priv_type {
  *	@dsa_ptr:	dsa specific data
  *	@tipc_ptr:	TIPC specific data
  *	@atalk_ptr:	AppleTalk link
- *	@ip_ptr:	IPv4 specific data
+ *	@ip_ptr:	IPv4 specific data 指向特定协议专用的数据结构.
  *	@ip6_ptr:	IPv6 specific data
  *	@ax25_ptr:	AX.25 specific data
  *	@ieee80211_ptr:	IEEE 802.11 specific data, assign before registering
@@ -1866,7 +1866,7 @@ enum netdev_ml_priv_type {
  *	@mpls_ptr:	mpls_dev struct pointer
  *	@mctp_ptr:	MCTP specific data
  *
- *	@dev_addr:	Hw address (before bcast,
+ *	@dev_addr:	Hw address (before bcast,  设备链路层地址 --- 配置
  *			because most packets are unicast)
  *
  *	@_rx:			Array of RX queues
@@ -1884,7 +1884,7 @@ enum netdev_ml_priv_type {
  *				ingress processing
  *	@ingress_queue:		XXX: need comments on this one
  *	@nf_hooks_ingress:	netfilter hooks executed for ingress packets
- *	@broadcast:		hw bcast address
+ *	@broadcast:		hw bcast address 链路层广播地址 --- 配置
  *
  *	@rx_cpu_rmap:	CPU reverse-mapping for RX completion interrupts,
  *			indexed by RX queue number. Assigned by driver.
@@ -1896,7 +1896,7 @@ enum netdev_ml_priv_type {
  *	@num_tx_queues:		Number of TX queues allocated at alloc_netdev_mq() time
  *	@real_num_tx_queues: 	Number of TX queues currently active in device
  *	@qdisc:			Root qdisc from userspace point of view
- *	@tx_queue_len:		Max frames per queue allowed
+ *	@tx_queue_len:		Max frames per queue allowed 设备的传送队列的长度。
  *	@tx_global_lock: 	XXX: need comments on this one
  *	@xdp_bulkq:		XDP device bulk queue
  *	@xps_maps:		all CPUs/RXQs maps for XPS device
@@ -1911,13 +1911,13 @@ enum netdev_ml_priv_type {
  *	@watchdog_timer:	List of timers
  *
  *	@proto_down_reason:	reason a netdev interface is held down
- *	@pcpu_refcnt:		Number of references to this device
- *	@dev_refcnt:		Number of references to this device
+ *	@pcpu_refcnt:		Number of references to this device 引用计数，用于防止设备被释放
+ *	@dev_refcnt:		Number of references to this device 
  *	@refcnt_tracker:	Tracker directory for tracked references to this device
- *	@todo_list:		Delayed register/unregister
+ *	@todo_list:		Delayed register/unregister 网络设备的注册和注销是以两步进行的。todo_list用于处理第二步骤
  *	@link_watch_list:	XXX: need comments on this one
  *
- *	@reg_state:		Register/unregister state machine
+ *	@reg_state:		Register/unregister state machine 设备的注册状态 --- 状态
  *	@dismantle:		Device is going to be freed
  *	@rtnl_link_state:	This enum represents the phases of creating
  *				a new link
