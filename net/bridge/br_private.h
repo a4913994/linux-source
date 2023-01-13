@@ -58,6 +58,7 @@ typedef struct bridge_id bridge_id;
 typedef struct mac_addr mac_addr;
 typedef __u16 port_id;
 
+// 网桥ID
 struct bridge_id {
 	unsigned char	prio[2];
 	unsigned char	addr[ETH_ALEN];
@@ -259,6 +260,7 @@ struct net_bridge_fdb_key {
 	u16 vlan_id;
 };
 
+// 转发数据库的记录项。网桥学到的每个MAC地址都有这样一个记录
 struct net_bridge_fdb_entry {
 	struct rhash_head		rhnode;
 	struct net_bridge_port		*dst;
@@ -352,7 +354,7 @@ struct net_bridge_mdb_entry {
 	struct net_bridge_mcast_gc	mcast_gc;
 	struct rcu_head			rcu;
 };
-
+// 网桥端口
 struct net_bridge_port {
 	struct net_bridge		*br;
 	struct net_device		*dev;
@@ -458,6 +460,7 @@ enum net_bridge_opts {
 	BROPT_MST_ENABLED,
 };
 
+// 应用到单个网桥的信息
 struct net_bridge {
 	spinlock_t			lock;
 	spinlock_t			hash_lock;
