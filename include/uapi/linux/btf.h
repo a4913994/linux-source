@@ -8,6 +8,16 @@
 #define BTF_MAGIC	0xeB9F
 #define BTF_VERSION	1
 
+/**
+ * btf_header: BTP头
+ * @version: BTF 版本
+ * @flags: BTF 标志
+ * @hdr_len: BTF 头长度
+ * @type_off: 类型偏移
+ * @type_len: 类型长度
+ * @str_off: 字符串偏移
+ * @str_len: 字符串长度
+ */
 struct btf_header {
 	__u16	magic;
 	__u8	version;

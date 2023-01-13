@@ -50,6 +50,14 @@
 #define BPF_CMPXCHG	(0xf0 | BPF_FETCH)	/* atomic compare-and-write */
 
 /* Register numbers */
+/**
+ * BPF有10个通用寄存器和堆栈帧
+ * BPF_REG_0 ~ BPF_REG_10
+ * BPF_REG_0: 用于辅助函数调用的返回值
+ * BPF_REG_1 ~ BPF_REG_5: 用于存放函数参数, 处理从BPF程序到内核帮助程序函数的参数
+ * BPF_REG_6 ~ BPF_REG_9: 是被调用者保存的寄存器，将在函数调用时被保存
+ * BPF_REG_10: 用于存放函数内部变量
+ */
 enum {
 	BPF_REG_0 = 0,
 	BPF_REG_1,
@@ -68,6 +76,13 @@ enum {
 /* BPF has 10 general purpose 64-bit registers and stack frame. */
 #define MAX_BPF_REG	__MAX_BPF_REG
 
+/**
+ * code: 指令码
+ * dst_reg: 目标寄存器
+ * src_reg: 源寄存器
+ * off: 偏移量
+ * imm: 立即数
+ */
 struct bpf_insn {
 	__u8	code;		/* opcode */
 	__u8	dst_reg:4;	/* dest register */
@@ -76,17 +91,33 @@ struct bpf_insn {
 	__s32	imm;		/* signed immediate constant */
 };
 
+/**
+ * BPF_MAP_TYPE_LPMT_TRIE: 用于存储IPv4或IPv6地址的前缀
+ */
 /* Key of an a BPF_MAP_TYPE_LPM_TRIE entry */
 struct bpf_lpm_trie_key {
 	__u32	prefixlen;	/* up to 32 for AF_INET, 128 for AF_INET6 */
 	__u8	data[0];	/* Arbitrary size */
 };
 
+/**
+ * bpf_cgroup_storage_key: 用于存储cgroup的inode id和attach type
+ * cgroup_inode_id: cgroup的inode id
+ * attach_type: 程序的attach type
+ */
 struct bpf_cgroup_storage_key {
 	__u64	cgroup_inode_id;	/* cgroup inode id */
 	__u32	attach_type;		/* program attach type (enum bpf_attach_type) */
 };
 
+/**
+ * bpf_cgroup_iter_order: 用于指定cgroup迭代器的遍历顺序
+ * BPF_CGROUP_ITER_ORDER_UNSPEC: 未指定
+ * BPF_CGROUP_ITER_SELF_ONLY: 只遍历当前cgroup
+ * BPF_CGROUP_ITER_DESCENDANTS_PRE: 遍历当前cgroup的所有子孙cgroup，先序遍历
+ * BPF_CGROUP_ITER_DESCENDANTS_POST: 遍历当前cgroup的所有子孙cgroup，后序遍历
+ * BPF_CGROUP_ITER_ANCESTORS_UP: 遍历当前cgroup的所有祖先cgroup，从当前cgroup开始向上遍历
+ */
 enum bpf_cgroup_iter_order {
 	BPF_CGROUP_ITER_ORDER_UNSPEC = 0,
 	BPF_CGROUP_ITER_SELF_ONLY,		/* process only a single object. */
@@ -95,10 +126,15 @@ enum bpf_cgroup_iter_order {
 	BPF_CGROUP_ITER_ANCESTORS_UP,		/* walk ancestors upward. */
 };
 
+/**
+ * bpf_iter_link_info: 用于指定迭代器的参数
+ */
 union bpf_iter_link_info {
+	/* Parameters of map iterators. */
 	struct {
 		__u32	map_fd;
 	} map;
+	/* Parameters of cgroup iterators. */
 	struct {
 		enum bpf_cgroup_iter_order order;
 
@@ -111,8 +147,13 @@ union bpf_iter_link_info {
 		__u64	cgroup_id;
 	} cgroup;
 	/* Parameters of task iterators. */
+	/**
+	 * tid: 任务的ID
+	 * pid: 进程的ID
+	 * pid_fd: 进程的文件描述符
+	 */
 	struct {
-		__u32	tid;
+		__u32	tid; 
 		__u32	pid;
 		__u32	pid_fd;
 	} task;
@@ -131,6 +172,12 @@ union bpf_iter_link_info {
  * DOC: eBPF Syscall Commands
  *
  * BPF_MAP_CREATE
+ *  描述:
+ * 		创建一个map，并返回一个文件描述符，该文件描述符指向该map。
+ * 		对于新的文件描述符，自动启用close-on-exec文件描述符标志(参见fcntl(2))。
+ * 		对**BPF_MAP_CREATE**返回的文件描述符应用**close**\ (2)将删除map(但参见NOTES)。
+ * 返回:
+ * 		一个新的文件描述符(一个非负整数)，如果发生错误则返回-1(在这种情况下，errno设置为适当的值)。
  *	Description
  *		Create a map and return a file descriptor that refers to the
  *		map. The close-on-exec file descriptor flag (see **fcntl**\ (2))
@@ -144,6 +191,13 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_MAP_LOOKUP_ELEM
+ *  描述:
+ * 		在由文件描述符*map_fd*指向的map中查找具有给定*key*的元素。
+ * 		*flags*参数可以指定为以下之一:
+ * 		**BPF_F_LOCK**
+ * 			查找包含spinlock的元素的值，而不返回锁。如果元素包含spinlock，则必须指定此标志。
+ * 返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。
  *	Description
  *		Look up an element with a given *key* in the map referred to
  *		by the file descriptor *map_fd*.
@@ -161,6 +215,26 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_MAP_UPDATE_ELEM
+ *  描述:
+ * 		在由文件描述符*map_fd*指向的map中创建或更新具有给定*key*的元素。
+ * 		*flags*参数可以指定为以下之一:
+ * 		**BPF_ANY**
+ * 			创建一个新元素或更新现有元素。
+ * 		**BPF_NOEXIST**
+ * 			仅在元素不存在时创建新元素。
+ * 		**BPF_EXIST**
+ * 			更新现有元素。
+ * 		**BPF_F_LOCK**
+ * 			更新包含spinlock的元素。
+ * 返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。
+ * 		可能会将errno设置为**EINVAL**、**EPERM**、**ENOMEM**、**E2BIG**、**EEXIST**、**ENOENT**
+ * 		**E2BIG**
+ * 			元素数目增加到达到*max_entries*限制。
+ * 		**EEXIST**
+ * 			*flags*指定为**BPF_NOEXIST**，但元素已存在。
+ * 		**ENOENT**
+ * 			*flags*指定为**BPF_EXIST**，但元素不存在。
  *	Description
  *		Create or update an element (key/value pair) in a specified map.
  *
@@ -194,6 +268,10 @@ union bpf_iter_link_info {
  *			*key* does not exist in the map.
  *
  * BPF_MAP_DELETE_ELEM
+ *  描述:
+ * 		在由文件描述符*map_fd*指向的map中查找并删除具有给定*key*的元素。
+ *	返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。 
  *	Description
  *		Look up and delete an element by key in a specified map.
  *
@@ -202,6 +280,15 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_MAP_GET_NEXT_KEY
+ *  描述:
+ * 		在由文件描述符*map_fd*指向的map中查找具有给定*key*的元素，并将下一个元素的键存储在*next_key*中, 可以用于遍历map中的所有元素。
+ * 	返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。
+ * 		可以使用以下情况来遍历map中的所有元素:
+ * 			* 如果*key*未找到，则该操作返回零，并将*next_key*指针设置为第一个元素的键。
+ * 			* 如果找到*key*，则该操作返回零，并将*next_key*指针设置为下一个元素的键。
+ * 			* 如果*key*是最后一个元素，则返回-1，并将errno设置为ENOENT。
+ * 		可能会将errno设置为**ENOMEM**、**EFAULT**、**EPERM**、**ENOENT**。
  *	Description
  *		Look up an element by key in a specified map and return the key
  *		of the next element. Can be used to iterate over all elements
@@ -225,6 +312,12 @@ union bpf_iter_link_info {
  *		**EINVAL** on error.
  *
  * BPF_PROG_LOAD
+ *  描述:
+ * 		验证并加载eBPF程序，返回与程序关联的新文件描述符。
+ * 		将close(2)应用于**BPF_PROG_LOAD**返回的文件描述符将卸载eBPF程序(但请参阅NOTES)。
+ * 		对于新文件描述符，自动启用close-on-exec文件描述符标志(请参阅fcntl(2))。
+ * 	返回:
+ * 		如果成功，则返回新文件描述符(非负整数)。如果发生错误，则返回-1，并将errno设置为适当的值。
  *	Description
  *		Verify and load an eBPF program, returning a new file
  *		descriptor associated with the program.
@@ -240,6 +333,17 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_OBJ_PIN
+ *  描述:
+ * 		将由*pathname*指定的eBPF程序或映射引用固定到文件系统上的提供的*pathname*。
+ * 		*pathname*参数不得包含点(".").
+ * 		成功时，*pathname*保留对eBPF对象的引用，从而防止在关闭原始*bpf_fd*时释放对象。
+ * 		这允许eBPF对象在**close**\ (*bpf_fd*)之外的生命周期中存在，从而防止父进程的生命周期。
+ * 		将**unlink**\ (2)或类似的调用应用于*pathname*将从文件系统中取消固定对象，删除引用。
+ * 		如果没有其他文件描述符或文件系统节点引用相同的对象，则将删除该对象(请参阅NOTES)。
+ * 		父目录的文件系统类型必须支持**BPF_FS_MAGIC**操作。
+ * 	返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。 
+ * 
  *	Description
  *		Pin an eBPF program or map referred by the specified *bpf_fd*
  *		to the provided *pathname* on the filesystem.
@@ -265,6 +369,10 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_OBJ_GET
+ *  描述:
+ * 		打开一个文件描述符，该文件描述符引用由*pathname*指定的eBPF程序或映射。
+ *  返回:
+ * 		如果成功，则返回新文件描述符(非负整数)。如果发生错误，则返回-1，并将errno设置为适当的值。
  *	Description
  *		Open a file descriptor for the eBPF object pinned to the
  *		specified *pathname*.
@@ -274,6 +382,24 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_PROG_ATTACH
+ *  描述:
+ * 		将指定的eBPF程序附加到*target_fd*的指定*attach_type*钩子。
+ * 		*attach_type*指定要将程序附加到的eBPF附加点，并且必须是*bpf_attach_type*之一(见下文)。
+ * 		*attach_bpf_fd*必须是一个有效的文件描述符，用于加载的eBPF程序，该程序的类型为cgroup、流分析器、LIRC、sockmap或sock_ops，对应于指定的*attach_type*。
+ * 		*target_fd*必须是一个有效的文件描述符，用于内核对象，该对象取决于*attach_bpf_fd*的附加类型:
+ * 		**BPF_PROG_TYPE_CGROUP_DEVICE**, 
+ * 		**BPF_PROG_TYPE_CGROUP_SKB**,
+ * 		**BPF_PROG_TYPE_CGROUP_SOCK**,
+ * 		**BPF_PROG_TYPE_CGROUP_SOCK_ADDR**,
+ * 		**BPF_PROG_TYPE_CGROUP_SOCKOPT**,
+ * 		**BPF_PROG_TYPE_CGROUP_SYSCTL**,
+ * 		**BPF_PROG_TYPE_SOCK_OPS**, 
+ * 		**BPF_PROG_TYPE_FLOW_DISSECTOR**,
+ * 		**BPF_PROG_TYPE_LIRC_MODE2**,
+ * 		**BPF_PROG_TYPE_SK_SKB**,
+ * 		**BPF_PROG_TYPE_SK_MSG**,
+ *  返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。
  *	Description
  *		Attach an eBPF program to a *target_fd* at the specified
  *		*attach_type* hook.
@@ -296,7 +422,7 @@ union bpf_iter_link_info {
  *		**BPF_PROG_TYPE_CGROUP_SOCKOPT**,
  *		**BPF_PROG_TYPE_CGROUP_SYSCTL**,
  *		**BPF_PROG_TYPE_SOCK_OPS**
- *
+ *			
  *			Control Group v2 hierarchy with the eBPF controller
  *			enabled. Requires the kernel to be compiled with
  *			**CONFIG_CGROUP_BPF**.
@@ -320,6 +446,11 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_PROG_DETACH
+ *  描述:
+ * 		将与*target_fd*关联的eBPF程序从指定的*attach_type*钩子上分离。
+ * 		该程序必须先前已使用**BPF_PROG_ATTACH**附加。
+ *  返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。
  *	Description
  *		Detach the eBPF program associated with the *target_fd* at the
  *		hook specified by *attach_type*. The program must have been
@@ -330,6 +461,22 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_PROG_TEST_RUN
+ *  描述:
+ * 		使用*prog_fd*运行eBPF程序*repeat*次，针对提供的程序上下文*ctx_in*和数据*data_in*，
+ * 		并返回修改后的程序上下文*ctx_out*，*data_out*（例如，数据包数据），执行结果*retval*，
+ * 		以及测试运行的*duration*。
+ * 		作为输入和输出参数*ctx_in*，*ctx_out*，*data_in*和*data_out*提供的缓冲区的大小必须在相应的变量
+ * 		*ctx_size_in*，*ctx_size_out*，*data_size_in*和*data_size_out*中提供。
+ * 		如果未提供任何参数（即设置为NULL），则相应的大小字段必须为零。
+ * 		某些程序类型有特定的要求：
+ * 			**BPF_PROG_TYPE_SK_LOOKUP** 
+ * 				*data_in*和*data_out*必须时NULL
+ * 			**BPF_PROG_TYPE_RAW_TRACEPOINT**,
+ *			**BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE**
+ *			*ctx_out*, *data_in*和*data_out*必须时NULL
+ *  返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。
+ * 
  *	Description
  *		Run the eBPF program associated with the *prog_fd* a *repeat*
  *		number of times against a provided program context *ctx_in* and
@@ -368,6 +515,12 @@ union bpf_iter_link_info {
  *			the program referred to by *prog_fd*.
  *
  * BPF_PROG_GET_NEXT_ID
+ *  描述:
+ * 		获取当前内核中当前加载的下一个eBPF程序的id。
+ * 		查找大于*start_id*的eBPF程序的id，并在成功时更新*next_id*。
+ * 		如果没有其他eBPF程序的id大于*start_id*，则返回-1，并将*errno*设置为**ENOENT**。
+ * 返回:
+ * 		如果成功，则返回零。如果发生错误，或者没有id，则返回-1，并将errno设置为适当的值。
  *	Description
  *		Fetch the next eBPF program currently loaded into the kernel.
  *
@@ -381,6 +534,12 @@ union bpf_iter_link_info {
  *		is returned and *errno* is set appropriately.
  *
  * BPF_MAP_GET_NEXT_ID
+ *  描述:
+ * 		获取当前内核中当前加载的下一个eBPF映射的id。
+ * 		查找大于*start_id*的eBPF映射的id，并在成功时更新*next_id*。
+ * 		如果没有其他eBPF映射的id大于*start_id*，则返回-1，并将*errno*设置为**ENOENT**。
+ *  返回:
+ * 		如果成功，则返回零。如果发生错误，或者没有id，则返回-1，并将errno设置为适当的值。 
  *	Description
  *		Fetch the next eBPF map currently loaded into the kernel.
  *
@@ -394,6 +553,10 @@ union bpf_iter_link_info {
  *		is returned and *errno* is set appropriately.
  *
  * BPF_PROG_GET_FD_BY_ID
+ *  描述:
+ * 		为*prog_id*对应的eBPF程序打开一个文件描述符。
+ *  返回:
+ * 		一个新的文件描述符(一个非负整数)，如果发生错误，则返回-1(在这种情况下，errno设置为适当的值)。
  *	Description
  *		Open a file descriptor for the eBPF program corresponding to
  *		*prog_id*.
@@ -403,6 +566,10 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_MAP_GET_FD_BY_ID
+ *  描述:
+ * 		为*map_id*对应的eBPF映射打开一个文件描述符。
+ *  返回:
+ * 		一个新的文件描述符(一个非负整数)，如果发生错误，则返回-1(在这种情况下，errno设置为适当的值)。
  *	Description
  *		Open a file descriptor for the eBPF map corresponding to
  *		*map_id*.
@@ -412,6 +579,15 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_OBJ_GET_INFO_BY_FD
+ *  描述:
+ * 		获取* bpf_fd *对应的eBPF对象的信息。
+ * 		将* info *的信息填充到* info_len *字节中，其格式取决于* bpf_fd *的eBPF对象类型:
+ * 			* ** struct bpf_prog_info **
+ * 			* ** struct bpf_map_info **
+ * 			* ** struct bpf_btf_info **
+ * 			* ** struct bpf_link_info **
+ *  返回:
+ * 		如果成功，则返回零。如果发生错误，则返回-1，并将errno设置为适当的值。 
  *	Description
  *		Obtain information about the eBPF object corresponding to
  *		*bpf_fd*.
@@ -430,6 +606,9 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_PROG_QUERY
+ *  描述:
+ * 		获取*attach_bpf_fd*附加到*target_fd*的*attach_type*钩子的eBPF程序信息。
+ * 		*target_fd*必须是一个有效的文件描述符，该文件描述符取决于*attach_bpf_fd*的附加类型:
  *	Description
  *		Obtain information about eBPF programs associated with the
  *		specified *attach_type* hook.
@@ -476,6 +655,13 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_RAW_TRACEPOINT_OPEN
+ *  描述:
+ * 		将eBPF程序*prog_fd*附加到跟踪点*name*，以访问跟踪点的内核内部参数。
+ * 		*prog_fd*必须是一个有效的文件描述符，该文件描述符与类型为** BPF_PROG_TYPE_RAW_TRACEPOINT **的已加载的eBPF程序相关联。
+ * 		对跟踪点参数的内容对相应的eBPF程序没有ABI保证。
+ * 		对返回的文件描述符执行** close **\（2）将删除映射（但参见注意事项）。
+ *  返回:
+ * 		返回一个新的文件描述符（一个非负整数），如果发生错误，则返回-1（在这种情况下，* errno *将适当地设置）。
  *	Description
  *		Attach an eBPF program to a tracepoint *name* to access kernel
  *		internal arguments of the tracepoint in their raw form.
@@ -494,6 +680,14 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_BTF_LOAD
+ *  描述:
+ * 		验证并加载BPF类型格式（BTF）元数据到内核，返回与元数据相关联的新文件描述符。
+ * 		BTF在https://www.kernel.org/doc/html/latest/bpf/btf.html中有更详细的描述。
+ * 		*btf*参数必须指向有效的内存，该内存提供*btf_size*字节的BTF二进制元数据。
+ * 		返回的文件描述符可以传递给其他**bpf**\（）子命令，例如**BPF_PROG_LOAD**或**BPF_MAP_CREATE**，以将BTF与这些对象相关联。
+ * 		与**BPF_PROG_LOAD**类似，**BPF_BTF_LOAD **具有可选参数，以指定*btf_log_buf*，*btf_log_size*和*btf_log_level*。
+ *  返回:
+ * 		返回零表示成功。如果发生错误，则返回-1，并将*errno*设置为适当的值。
  *	Description
  *		Verify and load BPF Type Format (BTF) metadata into the kernel,
  *		returning a new file descriptor associated with the metadata.
@@ -517,6 +711,10 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_BTF_GET_FD_BY_ID
+ *  描述:
+ * 		打开与*btf_id*对应的BPF类型格式（BTF）的文件描述符。
+ *  返回:
+ * 		返回一个新的文件描述符（一个非负整数），如果发生错误，则返回-1（在这种情况下，* errno *将适当地设置）。
  *	Description
  *		Open a file descriptor for the BPF Type Format (BTF)
  *		corresponding to *btf_id*.
@@ -526,6 +724,14 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_TASK_FD_QUERY
+ *  描述:
+ * 		获取与*pid*和*fd*标识的目标进程相关联的eBPF程序的信息。
+ * 		如果*pid*和*fd*与跟踪点，kprobe或uprobe perf事件相关联，则*prog_id*和*fd_type*将被填充为eBPF程序id和文件描述符类型，该类型为**bpf_task_fd_type**。
+ * 		如果与kprobe或uprobe相关联，则*probe_offset*和*probe_addr*也将被填充。
+ * 		如果提供了*buf*，则*buf*的前*buf_len*字节将被填充为跟踪点，kprobe或uprobe的名称。
+ * 		结果*prog_id*可以使用**BPF_PROG_GET_FD_BY_ID**和**BPF_OBJ_GET_INFO_BY_FD**在更深层次的详细信息中进行内省。
+ *  返回:
+ * 		返回零表示成功。如果发生错误，则返回-1，并将*errno*设置为适当的值。
  *	Description
  *		Obtain information about eBPF programs associated with the
  *		target process identified by *pid* and *fd*.
@@ -547,6 +753,14 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_MAP_LOOKUP_AND_DELETE_ELEM
+ *  描述:
+ * 		在由文件描述符*fd*引用的映射中查找具有给定*key*的元素，如果找到，则删除该元素。
+ * 		对于**BPF_MAP_TYPE_QUEUE**和**BPF_MAP_TYPE_STACK**映射类型，*flags*参数需要设置为0，但对于其他映射类型，它可以指定为：
+ * 		**BPF_F_LOCK**
+ * 			查找并删除一个带有spinlock的映射的值，而不返回锁。如果元素包含spinlock，则必须指定此选项。
+ * 		**BPF_MAP_TYPE_QUEUE**和**BPF_MAP_TYPE_STACK**映射类型将此命令实现为“pop”操作，删除顶部元素而不是与*key*对应的元素。
+ * 返回:
+ * 		返回零表示成功。如果发生错误，则返回-1，并将*errno*设置为适当的值。
  *	Description
  *		Look up an element with the given *key* in the map referred to
  *		by the file descriptor *fd*, and if found, delete the element.
@@ -579,6 +793,14 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_MAP_FREEZE
+ *  描述:
+ * 		冻结指定映射的权限。
+ * 		通过传递零*flags*，可以冻结写权限。
+ * 		如果成功，则将来的任何系统调用调用都不会更改*map_fd*的映射状态。
+ * 		对于冻结的映射，仍然可以从eBPF程序进行写操作。
+ * 		不支持**BPF_MAP_TYPE_STRUCT_OPS**类型的映射。
+ *  返回:
+ * 		返回零表示成功。如果发生错误，则返回-1，并将*errno*设置为适当的值。
  *	Description
  *		Freeze the permissions of the specified map.
  *
@@ -594,6 +816,9 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_BTF_GET_NEXT_ID
+ *  描述:
+ * 		获取当前加载到内核中的下一个BPF类型格式(BTF)对象。
+ * 		查找大于*start_id*的BTF对象，并在成功时更新*next_id*。如果没有其他BTF对象的id高于*start_id*，则返回-1并将*errno*设置为**ENOENT**。
  *	Description
  *		Fetch the next BPF Type Format (BTF) object currently loaded
  *		into the kernel.
@@ -608,6 +833,13 @@ union bpf_iter_link_info {
  *		is returned and *errno* is set appropriately.
  *
  * BPF_MAP_LOOKUP_BATCH
+ *  描述:
+ * 		迭代并获取映射中的多个元素。
+ * 		用于管理批处理操作的两个不透明值*in_batch*和*out_batch*。最初，*in_batch*必须设置为NULL以开始批处理操作。在每个后续的**BPF_MAP_LOOKUP_BATCH**之后，调用者应将*out_batch*作为下一个操作的*in_batch*，以从当前点继续迭代。
+ * 		*keys*和*values*是输出参数，它们必须指向足以容纳*count*项的内存，这些项基于*map_fd*的映射的键和值大小。*keys*缓冲区必须是*key_size* * *count*。*values*缓冲区必须是*value_size* * *count*。
+ * 		*elem_flags*是输出参数，它必须指向足以容纳*count*项的内存。如果*elem_flags*不为NULL，则将返回每个元素的标志。
+ * 		*count*是输入参数，指定要查找的元素数。*count*必须大于零。
+ * 
  *	Description
  *		Iterate and fetch multiple elements in a map.
  *
@@ -648,6 +880,11 @@ union bpf_iter_link_info {
  *		iteration of a hash-based map type.
  *
  * BPF_MAP_LOOKUP_AND_DELETE_BATCH
+ *  描述:
+ * 		迭代并删除映射中的所有元素。
+ * 		此操作与**BPF_MAP_LOOKUP_BATCH**具有相同的行为，但有两个例外：
+ * 		*成功返回的每个元素也从映射中删除。这至少是*count*个元素。请注意，*count*既是输入参数也是输出参数。
+ * 		*在返回*errno*设置为**EFAULT**时，最多*count*个元素可能会被删除，而不会返回已删除元素的键和值。
  *	Description
  *		Iterate and delete all elements in a map.
  *
@@ -666,6 +903,21 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_MAP_UPDATE_BATCH
+ *  描述:
+ * 		更新映射中的多个元素。
+ * 		*keys*和*values*是输入参数，它们必须指向足以容纳*count*项的内存，基于映射*map_fd*的键和值大小。 *keys*缓冲区必须是*key_size* * *count*。 *values*缓冲区必须是*value_size* * *count*。
+ * 		*keys*中指定的每个元素都顺序更新为*values*中对应索引的值。 *in_batch*和*out_batch*参数被忽略，应为零。
+ * 		*elem_flags*参数应指定为以下之一：
+ * 		**BPF_ANY**
+ * 			创建新元素或更新现有元素。
+ * 		**BPF_NOEXIST**
+ * 			仅在元素不存在时创建新元素。
+ * 		**BPF_EXIST**
+ * 			仅在元素存在时更新元素。
+ * 		**BPF_F_LOCK**
+ * 			在更新元素时锁定映射。这必须指定如果元素包含自旋锁。
+ *  返回:
+ * 		成功时返回零。如果出错，则返回-1，并将*errno*设置为适当的值。
  *	Description
  *		Update multiple elements in a map by *key*.
  *
@@ -717,6 +969,10 @@ union bpf_iter_link_info {
  *			*key* does not exist in the map.
  *
  * BPF_MAP_DELETE_BATCH
+ *  描述:
+ * 		从映射中删除多个元素。
+ * 		*keys*是输入参数，它必须指向足以容纳*count*项的内存，基于映射*map_fd*的键大小。 *keys*缓冲区必须是*key_size* * *count*。
+ * 		*in_batch*，*out_batch*和*values*参数被忽略，应为零。
  *	Description
  *		Delete multiple elements in a map by *key*.
  *
@@ -748,6 +1004,8 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_LINK_CREATE
+ *  描述:
+ * 		将eBPF程序附加到*target_fd*的指定*attach_type*钩子，并返回用于管理链接的文件描述符句柄。
  *	Description
  *		Attach an eBPF program to a *target_fd* at the specified
  *		*attach_type* hook and return a file descriptor handle for
@@ -758,6 +1016,8 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_LINK_UPDATE
+ *  描述:
+ * 		将*link_fd*中的eBPF程序更新为*new_prog_fd*。
  *	Description
  *		Update the eBPF program in the specified *link_fd* to
  *		*new_prog_fd*.
@@ -767,6 +1027,8 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_LINK_GET_FD_BY_ID
+ *  描述:
+ * 		为*link_id*对应的eBPF链接打开文件描述符。
  *	Description
  *		Open a file descriptor for the eBPF Link corresponding to
  *		*link_id*.
@@ -776,6 +1038,9 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_LINK_GET_NEXT_ID
+ *  描述:
+ * 		检索当前加载到内核中的下一个eBPF链接的id。
+ * 		查找大于*start_id*的eBPF链接，并在成功时更新*next_id*。 如果没有其他eBPF链接的id大于*start_id*，则返回-1并将*errno*设置为**ENOENT**。
  *	Description
  *		Fetch the next eBPF link currently loaded into the kernel.
  *
@@ -789,6 +1054,10 @@ union bpf_iter_link_info {
  *		is returned and *errno* is set appropriately.
  *
  * BPF_ENABLE_STATS
+ *  描述:
+ * 		启用eBPF运行时统计信息收集。
+ * 		默认情况下，禁用eBPF运行时的统计信息收集以最小化相应的性能开销。 此命令全局启用统计信息。
+ * 		多个程序可以独立启用统计信息。 在收集所需的统计信息之后，可以通过调用此函数返回的文件描述符的**close**\（2）来禁用eBPF运行时统计信息。 只有在先前对此子命令的所有调用返回的文件描述符都关闭后，才会在系统范围内禁用统计信息。
  *	Description
  *		Enable eBPF runtime statistics gathering.
  *
@@ -808,6 +1077,9 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_ITER_CREATE
+ *  描述:
+ * 		在指定的*link_fd*（如先前使用**BPF_LINK_CREATE**创建）上创建迭代器，并返回可用于触发迭代的文件描述符。
+ * 		如果将生成的文件描述符固定到文件系统中，使用**BPF_OBJ_PIN**，则对该路径的后续**read**\（2）系统调用将触发迭代器使用*link_fd*上附加的eBPF程序读取内核状态。
  *	Description
  *		Create an iterator on top of the specified *link_fd* (as
  *		previously created using **BPF_LINK_CREATE**) and return a
@@ -823,6 +1095,8 @@ union bpf_iter_link_info {
  *		error occurred (in which case, *errno* is set appropriately).
  *
  * BPF_LINK_DETACH
+ *  描述:
+ * 		强制从其对应的附加点分离指定的*link_fd*。
  *	Description
  *		Forcefully detach the specified *link_fd* from its
  *		corresponding attachment point.
@@ -832,6 +1106,16 @@ union bpf_iter_link_info {
  *		is set appropriately.
  *
  * BPF_PROG_BIND_MAP
+ *  描述:
+ * 		将map绑定到eBPF程序的生命周期。 
+ * 		标识为*map_fd*的map与标识为*prog_fd*的程序绑定，并且仅在*prog_fd*释放时才释放。
+ * 		这可用于在没有对map的任何引用的情况下（例如，嵌入在eBPF程序指令中）将元数据与程序相关联。
+ *  注意:
+ * 		eBPF对象（映射和程序）可以在进程之间共享。
+ * 		* 在**fork**\（2）之后，子进程继承了引用相同eBPF对象的文件描述符。
+ * 		* 引用eBPF对象的文件描述符可以通过**unix**\（7）域套接字传输。
+ * 		* 引用eBPF对象的文件描述符可以使用**dup**\（2）等调用以通常的方式进行复制。
+ * 		* 引用ebpf对象的文件描述符可以被**BPF_OBJ_PIN** \（2）固定到文件系统中。
  *	Description
  *		Bind a map to the lifetime of an eBPF program.
  *
@@ -863,7 +1147,7 @@ union bpf_iter_link_info {
  *	filesystem or attached (for example, bound to a program or device).
  */
 enum bpf_cmd {
-	BPF_MAP_CREATE,
+	BPF_MAP_CREATE, 
 	BPF_MAP_LOOKUP_ELEM,
 	BPF_MAP_UPDATE_ELEM,
 	BPF_MAP_DELETE_ELEM,
@@ -902,6 +1186,41 @@ enum bpf_cmd {
 	BPF_PROG_BIND_MAP,
 };
 
+/**
+ * bpf_map_type: ebpf的MAP类型
+ * @BPF_MAP_TYPE_UNSPEC: 未指定
+ * @BPF_MAP_TYPE_HASH: 哈希表
+ * @BPF_MAP_TYPE_ARRAY: 数组
+ * @BPF_MAP_TYPE_PROG_ARRAY: 程序数组
+ * @BPF_MAP_TYPE_PERF_EVENT_ARRAY: perf事件数组
+ * @BPF_MAP_TYPE_PERCPU_HASH: 每个CPU的哈希表
+ * @BPF_MAP_TYPE_PERCPU_ARRAY: 每个CPU的数组
+ * @BPF_MAP_TYPE_STACK_TRACE: 栈跟踪
+ * @BPF_MAP_TYPE_CGROUP_ARRAY: cgroup数组
+ * @BPF_MAP_TYPE_LRU_HASH: 最近最少使用的哈希表
+ * @BPF_MAP_TYPE_LRU_PERCPU_HASH: 每个CPU的最近最少使用的哈希表
+ * @BPF_MAP_TYPE_LPM_TRIE: 长前缀匹配字典树
+ * @BPF_MAP_TYPE_ARRAY_OF_MAPS: MAP数组
+ * @BPF_MAP_TYPE_HASH_OF_MAPS: MAP哈希表
+ * @BPF_MAP_TYPE_DEVMAP: 设备MAP
+ * @BPF_MAP_TYPE_SOCKMAP: 套接字MAP
+ * @BPF_MAP_TYPE_CPUMAP: CPU MAP
+ * @BPF_MAP_TYPE_XSKMAP: XSK MAP
+ * @BPF_MAP_TYPE_SOCKHASH: 套接字哈希表
+ * @BPF_MAP_TYPE_CGROUP_STORAGE: cgroup存储
+ * @BPF_MAP_TYPE_REUSEPORT_SOCKARRAY: 重用端口套接字数组
+ * @BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE: 每个CPU的cgroup存储
+ * @BPF_MAP_TYPE_QUEUE: 队列
+ * @BPF_MAP_TYPE_STACK: 栈
+ * @BPF_MAP_TYPE_SK_STORAGE: 套接字存储
+ * @BPF_MAP_TYPE_DEVMAP_HASH: 设备MAP哈希表
+ * @BPF_MAP_TYPE_STRUCT_OPS: 结构体操作
+ * @BPF_MAP_TYPE_RINGBUF: 环形缓冲区
+ * @BPF_MAP_TYPE_INODE_STORAGE: inode存储
+ * @BPF_MAP_TYPE_TASK_STORAGE: 任务存储
+ * @BPF_MAP_TYPE_BLOOM_FILTER: 布隆过滤器
+ * @BPF_MAP_TYPE_USER_RINGBUF: 用户环形缓冲区
+ */
 enum bpf_map_type {
 	BPF_MAP_TYPE_UNSPEC,
 	BPF_MAP_TYPE_HASH,
@@ -945,6 +1264,41 @@ enum bpf_map_type {
  * programs correspond to /a/ specific kernel which is to be
  * analyzed, and not /a/ specific kernel /and/ all future ones.
  */
+/**
+ * enum bpf_prog_type - BPF程序类型
+ * @BPF_PROG_TYPE_UNSPEC: 未指定
+ * @BPF_PROG_TYPE_SOCKET_FILTER: 套接字过滤器
+ * @BPF_PROG_TYPE_KPROBE: 内核探针
+ * @BPF_PROG_TYPE_SCHED_CLS: 调度分类
+ * @BPF_PROG_TYPE_SCHED_ACT: 调度动作
+ * @BPF_PROG_TYPE_TRACEPOINT: 跟踪点
+ * @BPF_PROG_TYPE_XDP: XDP
+ * @BPF_PROG_TYPE_PERF_EVENT: 性能事件
+ * @BPF_PROG_TYPE_CGROUP_SKB: cgroup skb
+ * @BPF_PROG_TYPE_CGROUP_SOCK: cgroup套接字
+ * @BPF_PROG_TYPE_LWT_IN: LWT in
+ * @BPF_PROG_TYPE_LWT_OUT: LWT out
+ * @BPF_PROG_TYPE_LWT_XMIT: LWT xmit
+ * @BPF_PROG_TYPE_SOCK_OPS: 套接字操作
+ * @BPF_PROG_TYPE_SK_SKB: 套接字skb
+ * @BPF_PROG_TYPE_CGROUP_DEVICE: cgroup设备
+ * @BPF_PROG_TYPE_SK_MSG: 套接字消息
+ * @BPF_PROG_TYPE_RAW_TRACEPOINT: 原始跟踪点
+ * @BPF_PROG_TYPE_CGROUP_SOCK_ADDR: cgroup套接字地址
+ * @BPF_PROG_TYPE_LWT_SEG6LOCAL: LWT seg6local
+ * @BPF_PROG_TYPE_LIRC_MODE2: LIRC mode2
+ * @BPF_PROG_TYPE_SK_REUSEPORT: 套接字重用端口
+ * @BPF_PROG_TYPE_FLOW_DISSECTOR: 流分解器
+ * @BPF_PROG_TYPE_CGROUP_SYSCTL: cgroup sysctl
+ * @BPF_PROG_TYPE_RAW_TRACEPOINT_WRITABLE: 原始跟踪点可写
+ * @BPF_PROG_TYPE_CGROUP_SOCKOPT: cgroup套接字选项
+ * @BPF_PROG_TYPE_TRACING: 跟踪
+ * @BPF_PROG_TYPE_STRUCT_OPS: 结构体操作
+ * @BPF_PROG_TYPE_EXT: 扩展
+ * @BPF_PROG_TYPE_LSM: LSM
+ * @BPF_PROG_TYPE_SK_LOOKUP: 套接字查找
+ * @BPF_PROG_TYPE_SYSCALL: 系统调用
+ */
 enum bpf_prog_type {
 	BPF_PROG_TYPE_UNSPEC,
 	BPF_PROG_TYPE_SOCKET_FILTER,
@@ -980,6 +1334,53 @@ enum bpf_prog_type {
 	BPF_PROG_TYPE_SYSCALL, /* a program that can execute syscalls */
 };
 
+/**
+ * bpf_attach_type: BPF挂载类型
+ * @BPF_CGROUP_INET_INGRESS: cgroup inet ingress
+ * @BPF_CGROUP_INET_EGRESS: cgroup inet egress
+ * @BPF_CGROUP_INET_SOCK_CREATE: cgroup inet套接字创建
+ * @BPF_CGROUP_SOCK_OPS: cgroup套接字操作
+ * @BPF_SK_SKB_STREAM_PARSER: 套接字skb流解析器
+ * @BPF_SK_SKB_STREAM_VERDICT: 套接字skb流决定
+ * @BPF_CGROUP_DEVICE: cgroup设备
+ * @BPF_SK_MSG_VERDICT: 套接字消息决定
+ * @BPF_CGROUP_INET4_BIND: cgroup inet4绑定
+ * @BPF_CGROUP_INET6_BIND: cgroup inet6绑定
+ * @BPF_CGROUP_INET4_CONNECT: cgroup inet4连接
+ * @BPF_CGROUP_INET6_CONNECT: cgroup inet6连接
+ * @BPF_CGROUP_INET4_POST_BIND: cgroup inet4后绑定
+ * @BPF_CGROUP_INET6_POST_BIND: cgroup inet6后绑定
+ * @BPF_CGROUP_UDP4_SENDMSG: cgroup udp4发送消息
+ * @BPF_CGROUP_UDP6_SENDMSG: cgroup udp6发送消息
+ * @BPF_LIRC_MODE2: lirc mode2
+ * @BPF_FLOW_DISSECTOR: 流分解器
+ * @BPF_CGROUP_SYSCTL: cgroup sysctl
+ * @BPF_CGROUP_UDP4_RECVMSG: cgroup udp4接收消息
+ * @BPF_CGROUP_UDP6_RECVMSG: cgroup udp6接收消息
+ * @BPF_CGROUP_GETSOCKOPT: cgroup getsockopt
+ * @BPF_CGROUP_SETSOCKOPT: cgroup setsockopt
+ * @BPF_TRACE_RAW_TP: 原始跟踪点
+ * @BPF_TRACE_FENTRY: 跟踪函数入口
+ * @BPF_TRACE_FEXIT: 跟踪函数退出
+ * @BPF_MODIFY_RETURN: 修改返回值
+ * @BPF_LSM_MAC: lsm mac
+ * @BPF_TRACE_ITER: 跟踪迭代器
+ * @BPF_CGROUP_INET4_GETPEERNAME: cgroup inet4获取对端名称
+ * @BPF_CGROUP_INET6_GETPEERNAME: cgroup inet6获取对端名称
+ * @BPF_CGROUP_INET4_GETSOCKNAME: cgroup inet4获取套接字名称
+ * @BPF_CGROUP_INET6_GETSOCKNAME: cgroup inet6获取套接字名称
+ * @BPF_XDP_DEVMAP: xdp devmap
+ * BPF_CGROUP_INET_SOCK_RELEASE: cgroup inet套接字释放
+ * BPF_XDP_CPUMAP: xdp cpumap
+ * BPF_SK_LOOKUP: 套接字查找
+ * BPF_XDP: xdp
+ * BPF_SK_SKB_VERDICT: 套接字skb决定
+ * BPF_SK_REUSEPORT_SELECT: 套接字重用端口选择
+ * BPF_SK_REUSEPORT_SELECT_OR_MIGRATE: 套接字重用端口选择或迁移
+ * BPF_PERF_EVENT: perf event
+ * BPF_TRACE_KPROBE_MULTI: 跟踪多个kprobe
+ * BPF_LSM_CGROUP: lsm cgroup
+ */
 enum bpf_attach_type {
 	BPF_CGROUP_INET_INGRESS,
 	BPF_CGROUP_INET_EGRESS,
@@ -1030,6 +1431,19 @@ enum bpf_attach_type {
 
 #define MAX_BPF_ATTACH_TYPE __MAX_BPF_ATTACH_TYPE
 
+/**
+ * bpf_link_type: bpf连接类型
+ * @BPF_LINK_TYPE_UNSPEC: 未指定
+ * @BPF_LINK_TYPE_RAW_TRACEPOINT: 原始跟踪点
+ * @BPF_LINK_TYPE_TRACING: 跟踪
+ * @BPF_LINK_TYPE_CGROUP: cgroup
+ * @BPF_LINK_TYPE_ITER: 迭代器
+ * @BPF_LINK_TYPE_NETNS: 网络命名空间
+ * @BPF_LINK_TYPE_XDP: xdp
+ * @BPF_LINK_TYPE_PERF_EVENT: perf event
+ * @BPF_LINK_TYPE_KPROBE_MULTI: 多个kprobe
+ * @BPF_LINK_TYPE_STRUCT_OPS: 结构操作
+ */
 enum bpf_link_type {
 	BPF_LINK_TYPE_UNSPEC = 0,
 	BPF_LINK_TYPE_RAW_TRACEPOINT = 1,
@@ -1045,6 +1459,17 @@ enum bpf_link_type {
 	MAX_BPF_LINK_TYPE,
 };
 
+/**
+ * cgroup-bpf 挂载标签被用于BPF_PROG_ATTACH命令
+ * NONE（默认）：子树中不允许进一步的bpf程序。
+ * BPF_F_ALLOW_OVERRIDE：如果子cgroup安装了一些bpf程序，那么这个cgroup中的程序将yield到子cgroup程序。
+ * BPF_F_ALLOW_MULTI：如果子cgroup安装了一些bpf程序，那么该cgroup程序将在此cgroup中的程序之外运行。
+ * 只允许将一个程序附加到具有NONE或BPF_F_ALLOW_OVERRIDE标志的cgroup中。
+ * 在NONE或BPF_F_ALLOW_OVERRIDE之上附加另一个程序将释放旧程序并附加新程序。附加标志必须匹配。
+ * 
+ * 允许将多个程序附加到具有BPF_F_ALLOW_MULTI标志的cgroup中。它们按顺序执行。 
+ * 
+ */
 /* cgroup-bpf attach flags used in BPF_PROG_ATTACH command
  *
  * NONE(default): No further bpf programs allowed in the subtree.
@@ -1093,6 +1518,9 @@ enum bpf_link_type {
 #define BPF_F_ALLOW_MULTI	(1U << 1)
 #define BPF_F_REPLACE		(1U << 2)
 
+/**
+ * 如果BPF_F_STRICT_ALIGNMENT被用于BPF_PROG_LOAD命令，那么验证器将执行严格的对齐检查，就像内核没有设置CONFIG_EFFICIENT_UNALIGNED_ACCESS和NET_IP_ALIGN定义为2。
+ */
 /* If BPF_F_STRICT_ALIGNMENT is used in BPF_PROG_LOAD command, the
  * verifier will perform strict alignment checking as if the kernel
  * has been built with CONFIG_EFFICIENT_UNALIGNED_ACCESS not set,
@@ -1100,6 +1528,11 @@ enum bpf_link_type {
  */
 #define BPF_F_STRICT_ALIGNMENT	(1U << 0)
 
+/**
+ * 如果BPF_F_ANY_ALIGNMENT被用于BPF_PROG_LOAD命令，那么验证器将允许任何对齐方式。在具有严格对齐要求的平台上（例如sparc和mips），验证器将验证所有加载和存储是否符合此要求。这个标志将关闭该检查和执行。
+ * 
+ * 它主要用于测试，当我们想要验证验证器的上下文和内存访问方面时，但由于未对齐访问，对齐检查将在我们感兴趣的之前触发。
+ */
 /* If BPF_F_ANY_ALIGNMENT is used in BPF_PROF_LOAD command, the
  * verifier will allow any alignment whatsoever.  On platforms
  * with strict alignment requirements for loads ands stores (such
@@ -1217,12 +1650,17 @@ enum {
 
 /* flags for BPF_MAP_CREATE command */
 enum {
+	/**
+	 * BPF_F_NO_PREALLOC - don't preallocate map's memory
+	 */
 	BPF_F_NO_PREALLOC	= (1U << 0),
 /* Instead of having one common LRU list in the
  * BPF_MAP_TYPE_LRU_[PERCPU_]HASH map, use a percpu LRU list
  * which can scale and perform better.
  * Note, the LRU nodes (including free nodes) cannot be moved
  * across different LRU lists.
+ * 替代单一的LRU列表，使用percpu LRU列表，可以扩展和提高性能
+ * 注意，LRU节点（包括空闲节点）不能在不同的LRU列表之间移动
  */
 	BPF_F_NO_COMMON_LRU	= (1U << 1),
 /* Specify numa node during map creation */
@@ -1297,6 +1735,24 @@ struct bpf_stack_build_id {
 
 #define BPF_OBJ_NAME_LEN 16U
 
+/**
+ * bpf_attr: bpf属性, 用于bpf系统调用
+ * @map_type: map类型
+ * @key_size: key的大小
+ * @value_size: value的大小
+ * @max_entries: map的最大元素个数
+ * @map_flags: map的标志
+ * @inner_map_fd: 内部map的文件描述符
+ * @numa_node: numa节点
+ * @map_name: map的名字
+ * @map_ifindex: map的索引
+ * @btf_fd: btf文件描述符
+ * @btf_key_type_id: btf key的类型id
+ * @btf_value_type_id: btf value的类型id
+ * @bpf_vmlinux_value_type_id: bpf vmlinux value的类型id
+ * @max_extra: max_extra
+ * 
+ */
 union bpf_attr {
 	struct { /* anonymous struct used by BPF_MAP_CREATE command */
 		__u32	map_type;	/* one of enum bpf_map_type */
@@ -1355,6 +1811,28 @@ union bpf_attr {
 		__u64		flags;
 	} batch;
 
+	/**
+	 * prog_type: 程序类型
+	 * insn_cnt: 指令个数
+	 * insns: 指令
+	 * license: 许可证
+	 * log_level: 日志级别
+	 * log_size: 日志大小
+	 * log_buf: 日志缓冲区
+	 * kern_version: 内核版本
+	 * prog_flags: 程序标志
+	 * prog_name: 程序名字
+	 * prog_ifindex: 程序索引
+	 * expected_attach_type: 期望的attach类型
+	 * prog_btf_fd: 程序btf文件描述符
+	 * func_info_rec_size: 函数信息记录大小
+	 * func_info: 函数信息
+	 * func_info_cnt: 函数信息个数
+	 * line_info_rec_size: 行信息记录大小
+	 * line_info: 行信息
+	 * line_info_cnt: 行信息个数
+	 * attach_btf_id: attach btf id
+	 */
 	struct { /* anonymous struct used by BPF_PROG_LOAD command */
 		__u32		prog_type;	/* one of enum bpf_prog_type */
 		__u32		insn_cnt;
@@ -1562,6 +2040,10 @@ union bpf_attr {
 		__u32		flags;		/* extra flags */
 	} prog_bind_map;
 
+/**
+ * __attribute__((aligned(8))) is used to ensure that the structure is
+ * aligned to 8 bytes. 
+ */
 } __attribute__((aligned(8)));
 
 /* The description below is an attempt at providing documentation to eBPF
@@ -1582,6 +2064,10 @@ union bpf_attr {
  * Start of BPF helper function descriptions:
  *
  * void *bpf_map_lookup_elem(struct bpf_map *map, const void *key)
+ * 	描述: 
+ * 		在*map*中查找与*key*关联的条目。
+ * 	返回:
+ * 		与*key*关联的映射值，如果没有找到条目，则为**NULL**。
  * 	Description
  * 		Perform a lookup in *map* for an entry associated to *key*.
  * 	Return
@@ -1589,6 +2075,15 @@ union bpf_attr {
  * 		found.
  *
  * long bpf_map_update_elem(struct bpf_map *map, const void *key, const void *value, u64 flags)
+ * 	描述:
+ * 		在*map*中添加或更新与*key*关联的条目的值为*value*。*flags*是以下之一:
+ * 		**BPF_NOEXIST**
+ * 			*key*的条目必须不存在于映射中。
+ * 		**BPF_EXIST**
+ * 			*key*的条目必须已经存在于映射中。
+ * 		**BPF_ANY**
+ * 			*key*的条目的存在没有条件。
+ * 		标志值**BPF_NOEXIST**不能用于类型为**BPF_MAP_TYPE_ARRAY**或**BPF_MAP_TYPE_PERCPU_ARRAY**的映射(所有元素总是存在)，该助手将返回错误。
  * 	Description
  * 		Add or update the value of the entry associated to *key* in
  * 		*map* with *value*. *flags* is one of:
@@ -1607,12 +2102,17 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_map_delete_elem(struct bpf_map *map, const void *key)
+ * 	描述:
+ * 		从*map*中删除*key*的条目。
  * 	Description
  * 		Delete entry with *key* from *map*.
  * 	Return
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_probe_read(void *dst, u32 size, const void *unsafe_ptr)
+ * 	描述:
+ * 		对于跟踪程序，安全地尝试从内核空间地址*unsafe_ptr*读取*size*字节的数据，并将数据存储在*dst*中。
+ * 		通常，使用**bpf_probe_read_user**\ ()或**bpf_probe_read_kernel**\ ()替代
  * 	Description
  * 		For tracing programs, safely attempt to read *size* bytes from
  * 		kernel space address *unsafe_ptr* and store the data in *dst*.
@@ -1623,6 +2123,10 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * u64 bpf_ktime_get_ns(void)
+ * 	描述:
+ * 		返回自系统启动以来经过的时间，以纳秒为单位。不包括系统暂停的时间。参见: **clock_gettime**\ (**CLOCK_MONOTONIC**)
+ * 	返回:
+ * 		当前*ktime*。
  * 	Description
  * 		Return the time elapsed since system boot, in nanoseconds.
  * 		Does not include time the system was suspended.
@@ -1631,6 +2135,12 @@ union bpf_attr {
  * 		Current *ktime*.
  *
  * long bpf_trace_printk(const char *fmt, u32 fmt_size, ...)
+ * 	描述:
+ * 		这个助手是一个“printk()”类的调试设施。它将格式*fmt*（大小*fmt_size*）定义的消息打印到DebugFS中的*\/sys/kernel/debug/tracing/trace*文件，如果可用的话。它可以接受最多三个额外的**u64**参数（作为eBPF助手，参数的总数限制为五个）。
+ * 		每次调用该助手时，它都会将一行附加到跟踪中。当*\/sys/kernel/debug/tracing/trace*打开时，行被丢弃，请使用*\/sys/kernel/debug/tracing/trace_pipe*来避免这种情况。跟踪的格式是可自定义的，一个将得到的确切输出取决于设置在
+ * 		*\/sys/kernel/debug/tracing/trace_options*中的选项（有关详细信息，请参阅*README*文件）。
+ * 		如果*fmt*包含格式说明符，则必须提供相应数量的参数。如果*fmt*不包含格式说明符，则不需要提供参数。
+ * 
  * 	Description
  * 		This helper is a "printk()-like" facility for debugging. It
  * 		prints a message defined by format *fmt* (of size *fmt_size*)
@@ -1690,6 +2200,12 @@ union bpf_attr {
  * 		in case of failure.
  *
  * u32 bpf_get_prandom_u32(void)
+ * 	描述:
+ * 		获取伪随机数。 
+ * 		从安全角度来看，此助手使用自己的伪随机内部状态，并且不能用于推断内核中其他随机函数的种子。
+ * 		但是，必须注意的是，此助手使用的生成器不是加密安全的。
+ * 	返回:
+ * 		一个随机的32位无符号值。
  * 	Description
  * 		Get a pseudo-random number.
  *
@@ -1702,6 +2218,10 @@ union bpf_attr {
  * 		A random 32-bit unsigned value.
  *
  * u32 bpf_get_smp_processor_id(void)
+ * 	描述:
+ * 		获取SMP（对称多处理）处理器ID。请注意，所有程序都禁用了迁移，这意味着在程序的整个执行期间，SMP处理器ID是稳定的。
+ * 	返回:
+ * 		运行程序的处理器的SMP ID。
  * 	Description
  * 		Get the SMP (symmetric multiprocessing) processor id. Note that
  * 		all programs run with migration disabled, which means that the
@@ -1711,6 +2231,11 @@ union bpf_attr {
  * 		The SMP id of the processor running the program.
  *
  * long bpf_skb_store_bytes(struct sk_buff *skb, u32 offset, const void *from, u32 len, u64 flags)
+ * 	描述:
+ * 		将*len*字节从*from*地址存储到与*skb*关联的数据包中，偏移量为*offset*。*flags*是**BPF_F_RECOMPUTE_CSUM**（自动重新计算数据包的校验和）和**BPF_F_INVALIDATE_HASH**（将*skb*\ **->hash**，*skb*\ **->swhash**和*skb*\ **->l4hash**设置为0）的组合。
+ * 		对此助手的调用可能会更改底层数据包缓冲区。因此，在加载时，由验证器先前对指针执行的所有检查都将无效，并且如果助手与直接数据包访问一起使用，则必须再次执行检查。
+ * 	返回:
+ * 		成功返回0，或者返回负错误。
  * 	Description
  * 		Store *len* bytes from address *from* into the packet
  * 		associated to *skb*, at *offset*. *flags* are a combination of
@@ -1728,6 +2253,11 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_l3_csum_replace(struct sk_buff *skb, u32 offset, u64 from, u64 to, u64 size)
+ * 	描述:
+ * 		重新计算与*skb*关联的数据包的第3层（例如IP）校验和。计算是增量的，因此助手必须知道修改的标题字段的前值（*from*），该字段的新值（*to*），以及该字段的字节数（2或4），存储在*size*中。或者，可以通过将*from*和*size*设置为0，将前后值之间的差异存储在*to*中。对于这两种方法，*offset*表示包中IP校验和的位置。
+ * 		此助手与**bpf_csum_diff**\（）结合使用，后者不会就地更新校验和，但提供了更大的灵活性，并且可以处理校验和更新的大小大于2或4的情况。
+ * 	返回:
+ * 		成功返回0，或者返回负错误。
  * 	Description
  * 		Recompute the layer 3 (e.g. IP) checksum for the packet
  * 		associated to *skb*. Computation is incremental, so the helper
@@ -1753,6 +2283,11 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_l4_csum_replace(struct sk_buff *skb, u32 offset, u64 from, u64 to, u64 flags)
+ * 	描述:
+ * 		重新计算与*skb*关联的数据包的第4层（例如TCP，UDP或ICMP）校验和。计算是增量的，因此助手必须知道修改的标题字段的前值（*from*），该字段的新值（*to*），以及该字段的字节数（2或4），存储在最低四位的*flags*中。或者，可以通过将*from*和最低四位的*flags*设置为0，将前后值之间的差异存储在*to*中。对于这两种方法，*offset*表示包中IP校验和的位置。除了字段的大小，*flags*还可以添加（按位或）实际标志。使用**BPF_F_MARK_MANGLED_0**，空校验和将保持不变（除非添加**BPF_F_MARK_ENFORCE**），并且对于结果为零的校验和更新，将设置值为0xffff。
+ * 		此助手与**bpf_csum_diff**\（）结合使用，后者不会就地更新校验和，但提供了更大的灵活性，并且可以处理校验和更新的大小大于2或4的情况。
+ * 	返回:
+ * 		成功返回0，或者返回负错误。
  * 	Description
  * 		Recompute the layer 4 (e.g. TCP, UDP or ICMP) checksum for the
  * 		packet associated to *skb*. Computation is incremental, so the
@@ -1785,6 +2320,12 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_tail_call(void *ctx, struct bpf_map *prog_array_map, u32 index)
+ * 	描述:
+ * 		此特殊助手用于触发“尾调用”，或者换句话说，跳转到另一个eBPF程序。使用相同的堆栈帧（但调用者的堆栈和寄存器上的值对于被调用者是不可访问的）。此机制允许程序链接，以提高可用的eBPF指令的最大数量，或者在条件块中执行给定的程序。出于安全原因，有一个对连续尾调用的数量的上限。
+ * 		调用此助手时，程序尝试跳转到*prog_array_map*中的索引*index*的程序，该程序是一个特殊的映射，类型为**BPF_MAP_TYPE_PROG_ARRAY**，并将*ctx*传递给该程序。
+ * 		如果调用成功，则内核立即运行新程序的第一条指令。这不是函数调用，它永远不会返回到先前的程序。如果调用失败，则助手没有效果，调用者继续运行其后续指令。调用可能失败，如果跳转的目标程序不存在（即*index*大于*prog_array_map*中的条目数），或者如果跳转的目标程序的类型不是**BPF_PROG_TYPE_SCHED_CLS**或**BPF_PROG_TYPE_SCHED_ACT**。
+ *  返回:
+ * 		如果成功，则返回0，如果失败，则返回负错误。
  * 	Description
  * 		This special helper is used to trigger a "tail call", or in
  * 		other words, to jump into another eBPF program. The same stack
@@ -1816,6 +2357,9 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_clone_redirect(struct sk_buff *skb, u32 ifindex, u64 flags)
+ * 	描述:
+ * 		将与*skb*相关联的数据包克隆并重定向到另一个索引为*ifindex*的网络设备。可以使用入口和出口接口进行重定向。*flags*中的**BPF_F_INGRESS**值用于区分（如果存在标志，则选择入口路径，否则选择出口路径）。目前，这是唯一支持的标志。
+ * 		与**bpf_redirect**\ ()助手相比，**bpf_clone_redirect**\ ()具有关联的数据包缓冲区的复制成本，但是可以在eBPF程序之外执行。相反，**bpf_redirect**\ ()更有效，但是通过操作代码处理，重定向只在eBPF程序返回后发生。
  * 	Description
  * 		Clone and redirect the packet associated to *skb* to another
  * 		net device of index *ifindex*. Both ingress and egress
@@ -1840,6 +2384,10 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * u64 bpf_get_current_pid_tgid(void)
+ * 	描述:
+ * 		获取当前的pid和tgid。
+ * 	返回:
+ * 		包含当前tgid和pid的64位整数，创建方式如下：
  * 	Description
  * 		Get the current pid and tgid.
  * 	Return
@@ -1849,6 +2397,11 @@ union bpf_attr {
  * 		*current_task*\ **->pid**.
  *
  * u64 bpf_get_current_uid_gid(void)
+ * 	描述:
+ * 		获取当前的uid和gid。
+ * 	返回:
+ * 		包含当前GID和UID的64位整数，创建方式如下：
+ *      *current_gid* **<< 32 \|** *current_uid*.
  * 	Description
  * 		Get the current uid and gid.
  * 	Return
@@ -1856,6 +2409,10 @@ union bpf_attr {
  * 		created as such: *current_gid* **<< 32 \|** *current_uid*.
  *
  * long bpf_get_current_comm(void *buf, u32 size_of_buf)
+ * 	描述:
+ * 		将当前任务的**comm**属性复制到*buf*中，*buf*的大小为*size_of_buf*。**comm**属性包含当前任务的可执行文件（不包括路径）。*size_of_buf*必须为正数。成功时，助手确保*buf*以NUL结尾。失败时，它用零填充。
+ * 	返回:
+ * 		成功时返回0，失败时返回负错误。
  * 	Description
  * 		Copy the **comm** attribute of the current task into *buf* of
  * 		*size_of_buf*. The **comm** attribute contains the name of
@@ -1867,6 +2424,13 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * u32 bpf_get_cgroup_classid(struct sk_buff *skb)
+ * 	描述:
+ * 		获取当前任务的类ID，即*skb*所属的net_cls cgroup的类ID。
+ * 		此助手仅可用于TC egress路径，但不能用于入口。
+ * 		net_cls cgroup提供了一个接口，用于基于用户提供的标识符为来自相关cgroup的任务的所有流量标记网络数据包。有关详细信息，请参阅内核文档，该文档可从Linux源文件*Documentation/admin-guide/cgroup-v1/net_cls.rst*中获取。
+ * 		Linux内核有两个版本的cgroups：cgroups v1和cgroups v2。用户都可以使用它们，但请注意，net_cls cgroup仅适用于cgroup v1。这使得它与cgroup v2不兼容。
+ * 	返回:
+ * 		成功时返回类ID，失败时返回0。
  * 	Description
  * 		Retrieve the classid for the current task, i.e. for the net_cls
  * 		cgroup to which *skb* belongs.
@@ -1893,6 +2457,9 @@ union bpf_attr {
  * 		The classid, or 0 for the default unconfigured classid.
  *
  * long bpf_skb_vlan_push(struct sk_buff *skb, __be16 vlan_proto, u16 vlan_tci)
+ * 	描述:
+ * 		将协议*vlan_proto*的*vlan_tci*（VLAN标签控制信息）推送到与*skb*相关联的数据包，然后更新校验和。请注意，如果*vlan_proto*与**ETH_P_8021Q**和**ETH_P_8021AD**不同，则将其视为**ETH_P_8021Q**。
+ * 		对此助手的调用可能会更改底层数据包缓冲区。因此，在加载时，所有之前由验证器执行的对指针的检查都将失效，并且如果助手与直接数据包访问一起使用，则必须再次执行这些检查。
  * 	Description
  * 		Push a *vlan_tci* (VLAN tag control information) of protocol
  * 		*vlan_proto* to the packet associated to *skb*, then update
@@ -1909,6 +2476,9 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_skb_vlan_pop(struct sk_buff *skb)
+ * 	描述:
+ * 		从与*skb*相关联的数据包中弹出VLAN头。对此助手的调用可能会更改底层数据包缓冲区。因此，在加载时，所有之前由验证器执行的对指针的检查都将失效，并且如果助手与直接数据包访问一起使用，则必须再次执行这些检查。
+ * 
  * 	Description
  * 		Pop a VLAN header from the packet associated to *skb*.
  *
@@ -1921,6 +2491,11 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_skb_get_tunnel_key(struct sk_buff *skb, struct bpf_tunnel_key *key, u32 size, u64 flags)
+ * 	描述:
+ * 		获取隧道元数据。此助手采用指向空的**struct bpf_tunnel_key**的指针*key*，该指针的**size**将被填充为与*skb*相关联的数据包的隧道元数据。*flags*可以设置为**BPF_F_TUNINFO_IPV6**，表示隧道基于IPv6协议而不是IPv4协议。
+ * 		**struct bpf_tunnel_key**是一个对象，它将各种隧道协议使用的主要参数总结为一个单一的结构体。这样，它就可以用来轻松地基于封装头的内容（在此结构体中“总结”）做出决定。特别是，它保存远程端的IP地址（IPv4或IPv6，取决于隧道类型）。
+ * 		在*key*\ **->remote_ipv4**或*key*\ **->remote_ipv6**中。此外，它还保存了隧道类型（**BPF_TUNNEL_KEY_VXLAN**、**BPF_TUNNEL_KEY_GENEVE**或**BPF_TUNNEL_KEY_IPIP**）。
+ * 
  * 	Description
  * 		Get tunnel metadata. This helper takes a pointer *key* to an
  * 		empty **struct bpf_tunnel_key** of **size**, that will be
@@ -1972,6 +2547,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_skb_set_tunnel_key(struct sk_buff *skb, struct bpf_tunnel_key *key, u32 size, u64 flags)
+ *  描述:
+ * 		为与*skb*相关联的数据包填充隧道元数据。隧道元数据设置为*key*的内容，大小为*size*。*flags*可以设置为以下值的组合：
  * 	Description
  * 		Populate tunnel metadata for packet associated to *skb.* The
  * 		tunnel metadata is set to the contents of *key*, of *size*. The
@@ -2009,6 +2586,11 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * u64 bpf_perf_event_read(struct bpf_map *map, u64 flags)
+ *  描述:
+ * 		读取性能事件计数器的值。此助手依赖于类型为**BPF_MAP_TYPE_PERF_EVENT_ARRAY**的*map*。选择性能事件计数器的性质是在使用perf事件文件描述符更新*map*时完成的。*map*是一个数组，其大小是可用CPU的数量，每个单元格包含一个相对于一个CPU的值。要检索的值由*flags*指定，其中包含要查找的CPU的索引，使用**BPF_F_INDEX_MASK**进行屏蔽。或者，*flags*可以设置为**BPF_F_CURRENT_CPU**，以指示应检索当前CPU的值。
+ * 
+ * 		请注意，在Linux 4.13之前，只能检索硬件性能事件。
+ * 		另外，请注意，通常建议使用较新的帮助程序 **bpf_perf_event_read_value**\ （），而不是 **bpf_perf_event_read**\（).
  * 	Description
  * 		Read the value of a perf event counter. This helper relies on a
  * 		*map* of type **BPF_MAP_TYPE_PERF_EVENT_ARRAY**. The nature of
@@ -2038,6 +2620,13 @@ union bpf_attr {
  * 		negative error code in case of failure.
  *
  * long bpf_redirect(u32 ifindex, u64 flags)
+ *  描述:
+ * 		将数据包重定向到另一个网络设备的索引*ifindex*。此助手与**bpf_clone_redirect**\（）类似，但不克隆数据包，这提供了更高的性能。
+ * 		
+ * 		期望对于XDP，可以使用入口和出口接口进行重定向。*flags*中的**BPF_F_INGRESS**值用于区分（如果存在标志，则选择入口路径，否则选择出口路径）。目前，XDP仅支持将数据包重定向到出口接口，并且不接受任何标志。
+ * 		使用更通用的 **bpf_redirect_map**\ （） 也可以达到相同的效果，它使用 BPF 映射来存储重定向目标，而不是将其直接提供给帮助函数。
+ * 	返回:
+ * 		对于XDP，如果成功，则助手返回**XDP_REDIRECT**，如果失败，则返回**XDP_ABORTED**。对于其他程序类型，值为**TC_ACT_REDIRECT**（成功）或**TC_ACT_SHOT**（失败）。
  * 	Description
  * 		Redirect the packet to another net device of index *ifindex*.
  * 		This helper is somewhat similar to **bpf_clone_redirect**\
@@ -2061,6 +2650,9 @@ union bpf_attr {
  * 		error.
  *
  * u32 bpf_get_route_realm(struct sk_buff *skb)
+ *  描述:
+ * 		检索领域或路由，即*skb*的目的地的**tclassid**字段。检索的标识符是用户提供的标签，类似于net_cls cgroup（请参阅**bpf_get_cgroup_classid**\（）助手的描述）使用的标签，但是这里这个标签由路由（目的地条目）而不是任务持有。
+ * 		查询此标识符与clsact TC egress hook（有关详细信息，请参阅**tc-bpf（8）**）一起使用，或者在传统的类簇egress qdisc上使用，但不在TC ingress路径上使用。在clsact TC egress hook的情况下，这有一个优点，即内部，目的地条目尚未在传输路径中丢弃。因此，可以在传输路径上使用此标识符，而不是在接收路径上使用。
  * 	Description
  * 		Retrieve the realm or the route, that is to say the
  * 		**tclassid** field of the destination for the *skb*. The
@@ -2085,6 +2677,15 @@ union bpf_attr {
  * 		if none was found.
  *
  * long bpf_perf_event_output(void *ctx, struct bpf_map *map, u64 flags, void *data, u64 size)
+ *  描述:
+ * 		将原始*数据*块写入由*map*持有的特殊BPF perf事件，该*map*的类型为**BPF_MAP_TYPE_PERF_EVENT_ARRAY**。此perf事件必须具有以下属性：**PERF_SAMPLE_RAW**作为**sample_type**，**PERF_TYPE_SOFTWARE**作为**type**，以及**PERF_COUNT_SW_BPF_OUTPUT**作为**config**。
+ * 		*flags*用于指示*map*中的索引，该值必须与**BPF_F_INDEX_MASK**相与。或者，*flags*可以设置为**BPF_F_CURRENT_CPU**，以指示应使用当前CPU核心的索引。
+ * 		要写入的值为*size*，通过*data*传递。
+ *      程序 *ctx* 的上下文也需要传递给帮助程序
+ * 	    
+ *      在用户空间上，愿意读取值的程序需要在 perf 事件（对于一个或所有 CPU）上调用 **perf_event_open**\ （），并将文件描述符存储到 *map* 中, 这必须在调用 **bpf_perf_event_output**\ () 之前完成。
+ * 		一个例子可以在*samples/bpf/trace_output_user.c*中找到。
+ * 
  * 	Description
  * 		Write raw *data* blob into a special BPF perf event held by
  * 		*map* of type **BPF_MAP_TYPE_PERF_EVENT_ARRAY**. This perf
@@ -2130,6 +2731,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_skb_load_bytes(const void *skb, u32 offset, void *to, u32 len)
+ *  描述:
+ * 		从*skb*中的*offset*处加载*len*字节的数据到*to*指向的缓冲区中。
  * 	Description
  * 		This helper was provided as an easy way to load data from a
  * 		packet. It can be used to load *len* bytes from *offset* from
@@ -2147,6 +2750,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_get_stackid(void *ctx, struct bpf_map *map, u64 flags)
+ *  描述:
+ * 		遍历用户或内核栈并返回其id。为了实现这一点，帮助程序需要*ctx*，它是一个指向正在执行跟踪程序的上下文的指针，以及一个指向**BPF_MAP_TYPE_STACK_TRACE**类型的*map*的指针。
  * 	Description
  * 		Walk a user or a kernel stack and return its id. To achieve
  * 		this, the helper needs *ctx*, which is a pointer to the context
@@ -2189,6 +2794,11 @@ union bpf_attr {
  * 		in case of failure.
  *
  * s64 bpf_csum_diff(__be32 *from, u32 from_size, __be32 *to, u32 to_size, __wsum seed)
+ *  描述:
+ * 		从*from*指向的原始缓冲区中的*from_size*字节的数据计算校验和差异，指向*to*的原始缓冲区中的*to_size*字节的数据。可以将可选的*seed*添加到值中（可以级联，种子可以来自前面的调用）。
+ * 		这足够灵活，可以用于几种方式：
+ * 		* 如果*from_size* == 0，*to_size* > 0并且*seed*设置为校验和，则可以用于推送新数据时。
+ * 		* 如果*from_size* > 0，*to_size* == 0并且*seed*设置为校验和，则可以用于从数据包中删除数据时。
  * 	Description
  * 		Compute a checksum difference, from the raw buffer pointed by
  * 		*from*, of length *from_size* (that must be a multiple of 4),
@@ -2216,6 +2826,8 @@ union bpf_attr {
  * 		failure.
  *
  * long bpf_skb_get_tunnel_opt(struct sk_buff *skb, void *opt, u32 size)
+ *  描述:
+ * 		检索与*skb*关联的数据包的隧道选项元数据，并将原始隧道选项数据存储到*opt*的*size*缓冲区中。
  * 	Description
  * 		Retrieve tunnel options metadata for the packet associated to
  * 		*skb*, and store the raw tunnel option data to the buffer *opt*
@@ -2234,6 +2846,8 @@ union bpf_attr {
  * 		The size of the option data retrieved.
  *
  * long bpf_skb_set_tunnel_opt(struct sk_buff *skb, void *opt, u32 size)
+ *  描述:
+ * 		将隧道选项元数据设置为*opt*的*size*缓冲区中包含的选项数据。
  * 	Description
  * 		Set tunnel options metadata for the packet associated to *skb*
  * 		to the option data contained in the raw buffer *opt* of *size*.
@@ -2309,6 +2923,8 @@ union bpf_attr {
  * 		* A negative error code, if an error occurred.
  *
  * u32 bpf_get_hash_recalc(struct sk_buff *skb)
+ *  描述:
+ * 		检索数据包的哈希，*skb*\ **->hash**。如果未设置，则重新计算此哈希。
  * 	Description
  * 		Retrieve the hash of the packet, *skb*\ **->hash**. If it is
  * 		not set, in particular if the hash was cleared due to mangling,
@@ -2325,12 +2941,19 @@ union bpf_attr {
  * 		The 32-bit hash.
  *
  * u64 bpf_get_current_task(void)
+ *  描述:
+ * 		获取当前任务。
+ *  返回:
+ * 		指向当前任务结构的指针。
  * 	Description
  * 		Get the current task.
  * 	Return
  * 		A pointer to the current task struct.
  *
  * long bpf_probe_write_user(void *dst, const void *src, u32 len)
+ *  描述:
+ * 		以安全的方式尝试将*src*中的*len*字节写入*dst*中的内存。它仅适用于
+ * 		在用户上下文中的线程，*dst*必须是有效的用户空间地址。
  * 	Description
  * 		Attempt in a safe way to write *len* bytes from the buffer
  * 		*src* to *dst* in memory. It only works for threads that are in
@@ -2350,6 +2973,9 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_current_task_under_cgroup(struct bpf_map *map, u32 index)
+ *  描述:
+ * 		检查探针是否在给定的cgroup2层次结构的上下文中运行。要测试的cgroup2
+ * 		由类型为**BPF_MAP_TYPE_CGROUP_ARRAY**的*map*保存，*index*。
  * 	Description
  * 		Check whether the probe is being run is the context of a given
  * 		subset of the cgroup2 hierarchy. The cgroup2 to test is held by
@@ -2362,6 +2988,8 @@ union bpf_attr {
  * 		* A negative error code, if an error occurred.
  *
  * long bpf_skb_change_tail(struct sk_buff *skb, u32 len, u64 flags)
+ *  描述:
+ * 		调整与*skb*关联的数据包的大小，使其长度为*len*。*flags*保留给将来使用，
  * 	Description
  * 		Resize (trim or grow) the packet associated to *skb* to the
  * 		new *len*. The *flags* are reserved for future usage, and must
@@ -2386,6 +3014,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_skb_pull_data(struct sk_buff *skb, u32 len)
+ *  描述:
+ * 		将*skb*中的*len*字节从头部移动到尾部。如果*len*为0，则将整个数据包
  * 	Description
  * 		Pull in non-linear data in case the *skb* is non-linear and not
  * 		all of *len* are part of the linear section. Make *len* bytes
@@ -2445,6 +3075,8 @@ union bpf_attr {
  * 		void.
  *
  * long bpf_get_numa_node_id(void)
+ *  描述: 
+ * 		返回当前NUMA节点的id。该助手的主要用例是选择与程序通过**SO_ATTACH_REUSEPORT_EBPF**选项（参见**socket(7)**）附加到的套接字的本地NUMA节点，但该助手也可用于其他eBPF程序类型，类似于**bpf_get_smp_processor_id**\ ()。
  * 	Description
  * 		Return the id of the current NUMA node. The primary use case
  * 		for this helper is the selection of sockets for the local NUMA
@@ -2492,6 +3124,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_probe_read_str(void *dst, u32 size, const void *unsafe_ptr)
+ *  描述:
+ * 		从不安全的内核地址*unsafe_ptr*复制一个NUL终止的字符串到*dst*。有关更多详细信息，请参阅**bpf_probe_read_kernel_str**\ ()。
  * 	Description
  * 		Copy a NUL terminated string from an unsafe kernel address
  * 		*unsafe_ptr* to *dst*. See **bpf_probe_read_kernel_str**\ () for
@@ -2640,6 +3274,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_redirect_map(struct bpf_map *map, u32 key, u64 flags)
+ *  描述:
+ * 		将数据包重定向到由*map*索引为*key*的端点。根据其类型，此*map*可以包含对网络设备的引用(用于通过其他端口转发数据包)，或对CPU的引用(用于将XDP帧重定向到另一个CPU;但是这只针对本机XDP(带有驱动程序支持)实现)。*flags*的低两位用作如果map查找失败的返回代码。这样做是为了使返回值可以是由调用者选择的XDP程序返回代码之一，最高为**XDP_TX**。*flags*的高位可以设置为BPF_F_BROADCAST或BPF_F_EXCLUDE_INGRESS，如下所定义。
  * 	Description
  * 		Redirect the packet to the endpoint referenced by *map* at
  * 		index *key*. Depending on its type, this *map* can contain
@@ -2724,6 +3360,14 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_perf_event_read_value(struct bpf_map *map, u64 flags, struct bpf_perf_event_value *buf, u32 buf_size)
+ *  描述:
+ * 		读取性能事件计数器的值，并将其存储到*buf*中，大小为*buf_size*。
+ * 		此助手依赖于类型为**BPF_MAP_TYPE_PERF_EVENT_ARRAY**的*map*。
+ * 		选择性能事件计数器的性质是在使用perf事件文件描述符更新*map*时完成的。
+ * 		*map*是一个数组，其大小是可用CPU的数量，每个单元格包含一个相对于一个CPU的值。
+ * 		要检索的值由*flags*指定，其中包含要查找的CPU的索引，掩码为**BPF_F_INDEX_MASK**。
+ * 		或者，*flags*可以设置为**BPF_F_CURRENT_CPU**，以指示应检索当前CPU的值。
+ * 
  * 	Description
  * 		Read the value of a perf event counter, and store it into *buf*
  * 		of size *buf_size*. This helper relies on a *map* of type
@@ -2774,6 +3418,9 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_perf_prog_read_value(struct bpf_perf_event_data *ctx, struct bpf_perf_event_value *buf, u32 buf_size)
+ *  描述:
+ * 		对于附加到性能事件的eBPF程序，检索与*ctx*相关联的事件计数器的值，并将其存储到*buf*中，大小为*buf_size*。
+ * 		还存储启用和运行时间（有关更多详细信息，请参阅助手**bpf_perf_event_read_value**\ ()的描述）。
  * 	Description
  * 		For en eBPF program attached to a perf event, retrieve the
  * 		value of the event counter associated to *ctx* and store it in
@@ -2810,6 +3457,10 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_override_return(struct pt_regs *regs, u64 rc)
+ *  描述:
+ * 		用于错误注入，此助手使用kprobes覆盖被探测函数的返回值，并将其设置为*rc*。第一个参数是kprobe上下文*regs*。
+ * 		此助手通过将PC（程序计数器）设置为覆盖函数来实现。覆盖函数在被探测的函数之前运行。这意味着被探测的函数根本不会运行。替换函数只是返回所需的值。
+ * 		此助手具有安全隐患，因此受到限制。仅在内核使用**CONFIG_BPF_KPROBE_OVERRIDE**配置选项编译时才可用，并且在这种情况下，仅适用于标记为**ALLOW_ERROR_INJECTION**的函数。
  * 	Description
  * 		Used for error injection, this helper uses kprobes to override
  * 		the return value of the probed function, and to set it to *rc*.
@@ -3024,6 +3675,12 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_get_stack(void *ctx, void *buf, u32 size, u64 flags)
+ *  描述:
+ * 		将用户或内核堆栈返回到bpf程序提供的缓冲区中。
+ * 		为了实现这一点，该助手需要*ctx*，它是一个指针
+ * 		在执行跟踪程序的上下文。
+ * 		为了存储堆栈跟踪，bpf程序提供*buf*与
+ * 		一个非负的*size*。
  * 	Description
  * 		Return a user or a kernel stack in bpf program provided buffer.
  * 		To achieve this, the helper needs *ctx*, which is a pointer
@@ -3089,6 +3746,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_fib_lookup(void *ctx, struct bpf_fib_lookup *params, int plen, u32 flags)
+ *  描述:
+ * 		在内核表中使用*params*中的参数执行FIB查找。 
  *	Description
  *		Do FIB lookup in kernel tables using parameters in *params*.
  *		If lookup is successful and result shows packet is to be
@@ -3463,6 +4122,8 @@ union bpf_attr {
  *		0 on success, or a negative error in case of failure.
  *
  * long bpf_map_push_elem(struct bpf_map *map, const void *value, u64 flags)
+ *  描述:
+ * 		将*value*元素推入*map*。*flags*是以下之一:
  * 	Description
  * 		Push an element *value* in *map*. *flags* is one of:
  *
@@ -3479,6 +4140,8 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * long bpf_map_peek_elem(struct bpf_map *map, void *value)
+ *  描述:
+ * 		从*map*中获取一个元素，但不删除它。
  * 	Description
  * 		Get an element from *map* without removing it.
  * 	Return
@@ -3527,6 +4190,17 @@ union bpf_attr {
  *		0
  *
  * long bpf_spin_lock(struct bpf_spin_lock *lock)
+ *  描述:
+ * 		获取*lock*指针表示的自旋锁，该指针存储在map的值中。获取锁允许安全地更新该值中的其余字段。之后可以使用**bpf_spin_unlock**\ (*lock*)释放锁。
+ *  	BPF程序中的自旋锁有一些限制和约束:
+ * 		* **bpf_spin_lock**对象仅允许在**BPF_MAP_TYPE_HASH**和**BPF_MAP_TYPE_ARRAY**类型的映射中使用(此列表可以在将来扩展)。
+ * 		* map的BTF描述是必需的。
+ * 		* BPF程序一次只能获取一个锁，因为获取两个或更多锁可能会导致死锁。
+ * 		* BPF程序只能在map的BTF描述中使用**bpf_spin_lock**对象。
+ *      * 当锁被获取的时候，call是不被允许的(BPF 到 BPF 或帮助程序)	
+ * 	    * **BPF_LD_ABS** 和 **BPF_LD_IND** 指令不允许在旋转锁定区域中使用。
+ * 	    * BPF程序必须调用**bpf_spin_unlock**\ (*lock*)释放锁
+ * 
  *	Description
  *		Acquire a spinlock represented by the pointer *lock*, which is
  *		stored as part of a value of a map. Taking the lock allows to
@@ -3575,6 +4249,8 @@ union bpf_attr {
  *		0
  *
  * long bpf_spin_unlock(struct bpf_spin_lock *lock)
+ *  描述:
+ * 		释放之前通过**bpf_spin_lock**\ (*lock*)锁定的*lock*。
  *	Description
  *		Release the *lock* previously locked by a call to
  *		**bpf_spin_lock**\ (\ *lock*\ ).
@@ -3651,6 +4327,8 @@ union bpf_attr {
  * 		error otherwise.
  *
  * long bpf_sysctl_get_name(struct bpf_sysctl *ctx, char *buf, size_t buf_len, u64 flags)
+ *  描述:
+ * 		获取/proc/sys/中的sysctl的名称，并将其复制到程序提供的缓冲区*buf*中，大小为*buf_len*。
  *	Description
  *		Get name of sysctl in /proc/sys/ and copy it into provided by
  *		program buffer *buf* of size *buf_len*.
@@ -3667,6 +4345,8 @@ union bpf_attr {
  *		truncated name in this case).
  *
  * long bpf_sysctl_get_current_value(struct bpf_sysctl *ctx, char *buf, size_t buf_len)
+ *  描述:
+ * 		获取当前sysctl的值，并将其作为字符串复制到程序提供的缓冲区*buf*中，大小为*buf_len*。
  *	Description
  *		Get current value of sysctl as it is presented in /proc/sys
  *		(incl. newline, etc), and copy it as a string into provided
@@ -4133,6 +4813,8 @@ union bpf_attr {
  *		  state (TCP listening or UDP unconnected).
  *
  * u64 bpf_ktime_get_boot_ns(void)
+ *  描述:
+ * 		返回自系统启动以来的时间,以纳秒为单位。
  * 	Description
  * 		Return the time elapsed since system boot, in nanoseconds.
  * 		Does include the time the system was suspended.
@@ -4212,6 +4894,15 @@ union bpf_attr {
  *		The id is returned or 0 in case the id could not be retrieved.
  *
  * long bpf_ringbuf_output(void *ringbuf, void *data, u64 size, u64 flags)
+ *  描述:
+ * 		将*size*字节的*data*复制到环形缓冲区*ringbuf*中。
+ * 		如果*flags*中指定了**BPF_RB_NO_WAKEUP**，则不会发送新数据可用性的通知。
+ * 		如果*flags*中指定了**BPF_RB_FORCE_WAKEUP**，则无条件地发送新数据可用性的通知。
+ * 		如果*flags*中指定了**0**，则发送自适应通知。
+ * 		自适应通知是在用户空间进程已经捕获并消耗了所有可用负载时发送的通知。
+ * 		如果用户空间进程仍在处理先前的负载，则不需要通知，因为它将自动处理新添加的负载。
+ * 	返回:
+ * 		成功时返回0，或者在失败的情况下返回负错误：
  * 	Description
  * 		Copy *size* bytes from *data* into a ring buffer *ringbuf*.
  * 		If **BPF_RB_NO_WAKEUP** is specified in *flags*, no notification
@@ -4229,6 +4920,11 @@ union bpf_attr {
  * 		0 on success, or a negative error in case of failure.
  *
  * void *bpf_ringbuf_reserve(void *ringbuf, u64 size, u64 flags)
+ *  描述:
+ * 		在环形缓冲区*ringbuf*中保留*size*字节的有效负载。
+ * 		*flags*必须为0。
+ * 	返回:
+ * 		有效指针，具有*size*字节的可用内存；否则为NULL。
  * 	Description
  * 		Reserve *size* bytes of payload in a ring buffer *ringbuf*.
  * 		*flags* must be 0.
@@ -4237,6 +4933,12 @@ union bpf_attr {
  * 		otherwise.
  *
  * void bpf_ringbuf_submit(void *data, u64 flags)
+ *  描述:
+ * 		提交指向*data*的保留环形缓冲区样本。
+ * 		如果*flags*中指定了**BPF_RB_NO_WAKEUP**，则不会发送新数据可用性的通知。
+ * 		如果*flags*中指定了**BPF_RB_FORCE_WAKEUP**，则无条件地发送新数据可用性的通知。
+ * 		如果*flags*中指定了**0**，则发送自适应通知。
+ * 		请参阅'bpf_ringbuf_output()'以了解自适应通知的定义。
  * 	Description
  * 		Submit reserved ring buffer sample, pointed to by *data*.
  * 		If **BPF_RB_NO_WAKEUP** is specified in *flags*, no notification
@@ -4251,6 +4953,8 @@ union bpf_attr {
  * 		Nothing. Always succeeds.
  *
  * void bpf_ringbuf_discard(void *data, u64 flags)
+ *  描述:
+ * 		丢弃指向*data*的保留环形缓冲区样本。
  * 	Description
  * 		Discard reserved ring buffer sample, pointed to by *data*.
  * 		If **BPF_RB_NO_WAKEUP** is specified in *flags*, no notification
@@ -4265,6 +4969,8 @@ union bpf_attr {
  * 		Nothing. Always succeeds.
  *
  * u64 bpf_ringbuf_query(void *ringbuf, u64 flags)
+ *  描述:
+ * 		查询提供的环形缓冲区的各种特性。
  *	Description
  *		Query various characteristics of provided ring buffer. What
  *		exactly is queries is determined by *flags*:
@@ -4542,6 +5248,8 @@ union bpf_attr {
  *		value.
  *
  * long bpf_copy_from_user(void *dst, u32 size, const void *user_ptr)
+ *  描述:
+ * 	 从用户空间地址*user_ptr*读取*size*字节的数据并存储在*dst*中。这是**copy_from_user**\ ()的包装器。
  * 	Description
  * 		Read *size* bytes from user space address *user_ptr* and store
  * 		the data in *dst*. This is a wrapper of **copy_from_user**\ ().
@@ -4623,6 +5331,14 @@ union bpf_attr {
  * 		**TC_ACT_SHOT** on error.
  *
  * void *bpf_per_cpu_ptr(const void *percpu_ptr, u32 cpu)
+ *     描述:
+ * 		   获取指向percpu变量的指针, *percpu_ptr*是一个percpu ksym, *cpu*是cpu编号.
+ * 		   ksym是一个extern变量, 用'__ksym'修饰. 对于ksym, 内核中有一个同名的全局变量
+ * 		   (static或者global). 如果全局变量是percpu的, 那么ksym也是percpu的. 返回的指针
+ * 		   指向*cpu*上的全局percpu变量.
+ * 		   bpf_per_cpu_ptr()和内核中的per_cpu_ptr()具有相同的语义, 除了bpf_per_cpu_ptr()
+ * 		   可能返回NULL. 如果*cpu*大于nr_cpu_ids, bpf_per_cpu_ptr()就会返回NULL. 调用
+ * 		   bpf_per_cpu_ptr()的函数必须检查返回值.
  *     Description
  *             Take a pointer to a percpu ksym, *percpu_ptr*, and return a
  *             pointer to the percpu kernel variable on *cpu*. A ksym is an
@@ -4640,6 +5356,9 @@ union bpf_attr {
  *             NULL, if *cpu* is invalid.
  *
  * void *bpf_this_cpu_ptr(const void *percpu_ptr)
+ *  描述:
+ * 		获取指向percpu变量的指针, *percpu_ptr*是一个percpu ksym. ksym是一个extern变量,
+ * 
  *	Description
  *		Take a pointer to a percpu ksym, *percpu_ptr*, and return a
  *		pointer to the percpu kernel variable on this cpu. See the
@@ -4652,6 +5371,8 @@ union bpf_attr {
  *		A pointer pointing to the kernel percpu variable on this cpu.
  *
  * long bpf_redirect_peer(u32 ifindex, u64 flags)
+ *  描述:
+ * 		重定向数据包到另一个网络设备, *ifindex*是网络设备的索引. 这个helper和bpf_redirect()
  * 	Description
  * 		Redirect the packet to another net device of index *ifindex*.
  * 		This helper is somewhat similar to **bpf_redirect**\ (), except
@@ -4668,6 +5389,11 @@ union bpf_attr {
  * 		**TC_ACT_SHOT** on error.
  *
  * void *bpf_task_storage_get(struct bpf_map *map, struct task_struct *task, void *value, u64 flags)
+ *  描述:
+ * 		从*task*中获取一个bpf_local_storage. 从逻辑上讲, 它可以被认为是从一个*map*中获取一个*task*
+ * 		作为**key**的值. 从这个角度来看, 这个helper的使用和**bpf_map_lookup_elem**\ (*map*,
+ * 		**&**\ *task*)没有太大的区别, 除了这个helper强制要求key必须是一个task_struct, 并且map也必须是
+ * 		**BPF_MAP_TYPE_TASK_STORAGE**.
  *	Description
  *		Get a bpf_local_storage from the *task*.
  *
@@ -5853,6 +6579,40 @@ enum {
 /* user accessible mirror of in-kernel sk_buff.
  * new fields can only be added to the end of this structure
  */
+/**
+ * struct __sk_buff - BPF程序skb上下文
+ * @len:		总的包长度
+ * @pkt_type:		包类型
+ * @mark:		包标记
+ * @queue_mapping:	队列映射
+ * @protocol:		协议
+ * @vlan_present:	是否有vlan
+ * @vlan_tci:		vlan tci
+ * @vlan_proto:		vlan协议
+ * @priority:		优先级
+ * @ingress_ifindex:	入口接口索引
+ * @ifindex:		接口索引
+ * @tc_index:		tc索引
+ * @cb:			回调
+ * @hash:		hash
+ * @tc_classid:		tc classid
+ * @data:		数据
+ * @data_end:		数据结束
+ * @napi_id:		napi id
+ * @family:		协议族
+ * @remote_ip4:		远端ip4
+ * @local_ip4:		本地ip4
+ * @remote_ip6:		远端ip6
+ * @local_ip6:		本地ip6
+ * @remote_port:	远端端口
+ * @local_port:		本地端口
+ * 
+ * @data_meta:		元数据
+ * @tstamp: 		   skb timestamp
+ * @wire_len: 		包的长度
+ * @gso_segs: 		分段数
+ * @gso_size: 		分段大小
+*/
 struct __sk_buff {
 	__u32 len;
 	__u32 pkt_type;
@@ -6162,6 +6922,27 @@ struct sk_reuseport_md {
 
 #define BPF_TAG_SIZE	8
 
+/**
+ * bpf_prog_info: bpf程序信息
+ * @type: bpf程序类型
+ * @id: bpf程序id
+ * @tag: bpf程序标签
+ * @jited_prog_len: 已编译的bpf程序长度
+ * @xlated_prog_len: 已翻译的bpf程序长度
+ * @jited_prog_insns: 已编译的bpf程序指令
+ * 
+ * @xlated_prog_insns: 已翻译的bpf程序指令
+ * @load_time: 加载时间
+ * @created_by_uid: 创建者uid
+ * @nr_map_ids: map id数量
+ * @map_ids: map id
+ * @name: bpf程序名称
+ * @ifindex: 网络设备索引
+ * @gpl_compatible: 是否兼容gpl
+ * @netns_dev: 网络设备
+ * @netns_ino: 网络设备索引
+ * 
+ */
 struct bpf_prog_info {
 	__u32 type;
 	__u32 id;
