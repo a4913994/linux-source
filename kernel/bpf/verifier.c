@@ -2169,6 +2169,12 @@ bpf_jit_find_kfunc_model(const struct bpf_prog *prog,
 	return res ? &res->func_model : NULL;
 }
 
+/**
+ * @brief Add subprog and kfunc to verifier env.
+ * 
+ * @param env  Verifier environment.
+ * @return int  0 on success, negative error code on failure.
+ */
 static int add_subprog_and_kfunc(struct bpf_verifier_env *env)
 {
 	struct bpf_subprog_info *subprog = env->subprog_info;
@@ -2211,6 +2217,13 @@ static int add_subprog_and_kfunc(struct bpf_verifier_env *env)
 	return 0;
 }
 
+/**
+ * 检查subprog是否合法。
+ * 生成 env->subprog_info[] 数组，存储要跳转的函数的id。
+ * 检测JMP指令的跳转范围是否在subprog中。
+ * @param env 
+ * @return int 
+ */
 static int check_subprogs(struct bpf_verifier_env *env)
 {
 	int i, subprog_start, subprog_end, off, cur_subprog = 0;
@@ -10876,6 +10889,13 @@ static int visit_insn(int t, int insn_cnt, struct bpf_verifier_env *env)
 /* non-recursive depth-first-search to detect loops in BPF program
  * loop == back-edge in directed graph
  */
+/**
+ * check_cfg() - check for loops in the BPF program
+ * @env: verifier environment
+ * 检查BPF程序中的循环
+ * 1. 非递归的深度优先遍历检测是否存在有向无环图（循环）
+ * 2. 检测控制流合法性。
+*/
 static int check_cfg(struct bpf_verifier_env *env)
 {
 	int insn_cnt = env->prog->len;
@@ -11303,6 +11323,14 @@ static int check_core_relo(struct bpf_verifier_env *env,
 	return err;
 }
 
+/**
+ * @brief  check_btf_info - check btf info
+ * 
+ * @param env 
+ * @param attr
+ * @param uattr 
+ * @return int 
+ */
 static int check_btf_info(struct bpf_verifier_env *env,
 			  const union bpf_attr *attr,
 			  bpfptr_t uattr)
@@ -12826,7 +12854,7 @@ static int resolve_pseudo_ldimm64(struct bpf_verifier_env *env)
 					insn[0].imm);
 				return PTR_ERR(map);
 			}
-
+			/* 检查map类型与程序类型的兼容性 */
 			err = check_map_prog_compatibility(env, map, env->prog);
 			if (err) {
 				fdput(f);
@@ -13585,6 +13613,15 @@ static int convert_ctx_accesses(struct bpf_verifier_env *env)
 	return 0;
 }
 
+/**
+ * jit_subprogs: JIT编译器
+ * 扫描prog，找到bpf2bpf函数调用，找到对应的subprog，存储。
+ * 为每个要jit的subprog申请空间。
+ * bpf_int_jit_compile 每个subprog
+ * 修正bpf2bpf调用的函数距离（bpf_int_jit_compile）
+ * 这里实际上对于函数地址的修正经过了多轮jit，这里看了别的大佬的一种解释。
+ * 由于第一次不完全修正函数距离时
+*/
 static int jit_subprogs(struct bpf_verifier_env *env)
 {
 	struct bpf_prog *prog = env->prog, **func, *tmp;
@@ -15155,9 +15192,18 @@ struct btf *bpf_get_btf_vmlinux(void)
 	return btf_vmlinux;
 }
 
+/**
+ * @brief bpf_check - 检查验证BPF程序
+ * 
+ * @param prog: BPF程序
+ * @param attr: BPF map属性
+ * @param uattr: 
+ * @return int 
+ */
 int bpf_check(struct bpf_prog **prog, union bpf_attr *attr, bpfptr_t uattr)
 {
 	u64 start_time = ktime_get_ns();
+	/* bpf_verifier_env - BPF验证环境 */
 	struct bpf_verifier_env *env;
 	struct bpf_verifier_log *log;
 	int i, len, ret = -EINVAL;
@@ -15167,6 +15213,10 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr, bpfptr_t uattr)
 	if (ARRAY_SIZE(bpf_verifier_ops) == 0)
 		return -EINVAL;
 
+	/**
+	 * struct bpf_verifier_env 可以是全局的，但是由于它不是很小，每次调用bpf_check()时分配/释放它
+	 * 初始化env信息
+	 */
 	/* 'struct bpf_verifier_env' can be global, but since it's not small,
 	 * allocate/free it every time bpf_check() is called
 	 */
@@ -15188,6 +15238,7 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr, bpfptr_t uattr)
 	env->fd_array = make_bpfptr(attr->fd_array, uattr.is_kernel);
 	is_priv = bpf_capable();
 
+	/* bpf_get_btf_vmlinux() - 获取vmlinux的BTF信息 */
 	bpf_get_btf_vmlinux();
 
 	/* grab the mutex to protect few globals used by verifier */
@@ -15218,17 +15269,26 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr, bpfptr_t uattr)
 		goto skip_full_check;
 	}
 
+	/* set strict_alignment based on prog_flags */
+	/* BPF_F_STRICT_ALIGNMENT - 严格对齐 */
 	env->strict_alignment = !!(attr->prog_flags & BPF_F_STRICT_ALIGNMENT);
 	if (!IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS))
 		env->strict_alignment = true;
+	/* BPF_F_ANY_ALIGNMENT - 任意对齐 */
 	if (attr->prog_flags & BPF_F_ANY_ALIGNMENT)
 		env->strict_alignment = false;
 
+	/*bpf_allow_ptr_leaks: 允许指针泄漏 */
 	env->allow_ptr_leaks = bpf_allow_ptr_leaks();
+	/* bpf_allow_uninit_stack: 允许未初始化的堆栈 */
 	env->allow_uninit_stack = bpf_allow_uninit_stack();
+	/* bpf_allow_ptr_to_map_access: 允许指针访问map */
 	env->allow_ptr_to_map_access = bpf_allow_ptr_to_map_access();
+	/* bpf_bypass_spec_v1: 绕过spec_v1 */
 	env->bypass_spec_v1 = bpf_bypass_spec_v1();
+	/* bpf_bypass_spec_v2: 绕过spec_v2 */
 	env->bypass_spec_v4 = bpf_bypass_spec_v4();
+	/* bpf_capable: bpf能力 */
 	env->bpf_capable = bpf_capable();
 
 	if (is_priv)
@@ -15241,18 +15301,22 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr, bpfptr_t uattr)
 	if (!env->explored_states)
 		goto skip_full_check;
 
+	/* add_subprog_and_kfunc: 添加子程序和kfunc */
 	ret = add_subprog_and_kfunc(env);
 	if (ret < 0)
 		goto skip_full_check;
 
+	/* check_subprogs: 检查子程序 */
 	ret = check_subprogs(env);
 	if (ret < 0)
 		goto skip_full_check;
 
+	/*  check_btf_info: 检查BTF信息 */
 	ret = check_btf_info(env, attr, uattr);
 	if (ret < 0)
 		goto skip_full_check;
 
+	/* check_attach_btf_id: 检查attach_btf_id */
 	ret = check_attach_btf_id(env);
 	if (ret)
 		goto skip_full_check;

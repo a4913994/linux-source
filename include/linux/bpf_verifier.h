@@ -488,6 +488,16 @@ struct bpf_subprog_info {
 /* single container for all structs
  * one verifier_env per bpf_check() call
  */
+/**
+ * struct bpf_verifier_env - verifier environment
+ * @insn_idx:	index of the current instruction being verified
+ * @prev_insn_idx:	index of the previous instruction being verified
+ * @prog:	eBPF program being verified
+ * @ops:	verifier operations
+ * @head:	stack of verifier states to be processed
+ * @stack_size:	number of states to be processed
+ * @strict_alignment:	perform strict pointer alignment checks
+*/
 struct bpf_verifier_env {
 	u32 insn_idx;
 	u32 prev_insn_idx;

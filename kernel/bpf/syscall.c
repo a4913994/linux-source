@@ -2460,6 +2460,13 @@ static bool is_perfmon_prog_type(enum bpf_prog_type prog_type)
 /* last field in 'union bpf_attr' used by this command */
 #define	BPF_PROG_LOAD_LAST_FIELD core_relo_rec_size
 
+/**
+ * @brief bpf_prog_load - 载入一个BPF程序
+ * 
+ * @param attr bpf_attr结构体
+ * @param uattr bpf_attr结构体的用户空间地址
+ * @return int 
+ */
 static int bpf_prog_load(union bpf_attr *attr, bpfptr_t uattr)
 {
 	enum bpf_prog_type type = attr->prog_type;
@@ -2548,6 +2555,7 @@ static int bpf_prog_load(union bpf_attr *attr, bpfptr_t uattr)
 	}
 
 	/* plain bpf_prog allocation */
+	/* 为bpf_prog分配内存 */
 	prog = bpf_prog_alloc(bpf_prog_size(attr->insn_cnt), GFP_USER);
 	if (!prog) {
 		if (dst_prog)
@@ -2572,6 +2580,7 @@ static int bpf_prog_load(union bpf_attr *attr, bpfptr_t uattr)
 	prog->aux->user = get_current_user();
 	prog->len = attr->insn_cnt;
 
+	/* copy eBPF program instructions from user space */
 	err = -EFAULT;
 	if (copy_from_bpfptr(prog->insns,
 			     make_bpfptr(attr->insns, uattr.is_kernel),
@@ -2579,7 +2588,7 @@ static int bpf_prog_load(union bpf_attr *attr, bpfptr_t uattr)
 		goto free_prog_sec;
 
 	prog->orig_prog = NULL;
-	prog->jited = 0;
+	prog->jited = 0; /* not jited yet */
 
 	atomic64_set(&prog->aux->refcnt, 1);
 	prog->gpl_compatible = is_gpl ? 1 : 0;
@@ -2591,25 +2600,35 @@ static int bpf_prog_load(union bpf_attr *attr, bpfptr_t uattr)
 	}
 
 	/* find program type: socket_filter vs tracing_filter */
+	/* 根据type查找对应的bpf_prog_ops */
+	/* 例如type为BPF_PROG_TYPE_SOCKET_FILTER，那么prog_ops就是bpf_sock_ops */
+	/* 例如type为BPF_PROG_TYPE_TRACING，那么prog_ops就是bpf_trace_ops */
 	err = find_prog_type(type, prog);
 	if (err < 0)
 		goto free_prog_sec;
 
 	prog->aux->load_time = ktime_get_boottime_ns();
+	/* copy program name */
 	err = bpf_obj_name_cpy(prog->aux->name, attr->prog_name,
 			       sizeof(attr->prog_name));
 	if (err < 0)
 		goto free_prog_sec;
 
 	/* run eBPF verifier */
+	/* 调用bpf_check()函数，对bpf_prog进行检查 */
+	/* kernel/bpf/verifier.c:15158*/
 	err = bpf_check(&prog, attr, uattr);
 	if (err < 0)
 		goto free_used_maps;
 
+	/* select runtime program */
+	/* 初始和分配jit */
+	/* kernel/bpf/core.c:2160 */
 	prog = bpf_prog_select_runtime(prog, &err);
 	if (err < 0)
 		goto free_used_maps;
 
+	/* allocate program id */
 	err = bpf_prog_alloc_id(prog);
 	if (err)
 		goto free_used_maps;

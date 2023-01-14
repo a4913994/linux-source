@@ -1182,6 +1182,20 @@ struct bpf_prog_aux {
 	};
 };
 
+/**
+ * kernel中的bpf_prog结构体
+ * @pages: 页数
+ * @jited: 是否已经JIT
+ * @jit_requested: 是否需要JIT
+ * @gpl_compatible: 是否兼容GPL
+ * @cb_access: 是否访问控制块
+ * @dst_needed: 是否需要目的地
+ * @blinding_requested: 是否需要常量盲化
+ * @blinded: 是否已经盲化
+ * @is_func: 是否是bpf函数
+ * @kprobe_override: 是否覆盖kprobe
+ * @has_callchain_buf: 是否有调用链缓冲区
+ */
 struct bpf_prog {
 	u16			pages;		/* Number of allocated pages */
 	u16			jited:1,	/* Is our filter JIT'ed? */
